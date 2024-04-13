@@ -104,7 +104,6 @@ where
     if metadata.result_unwrap().is_dir() {
         let base_path = entry.get_path();
         DIR_LIST.lock().unwrap().push(base_path);
-        recurse_dirs(&entry.get_path());
     } else {
         FILE_LIST.lock().unwrap().push(entry.get_path());
         if cfg!(unix) {
