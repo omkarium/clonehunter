@@ -7,25 +7,28 @@ use indicatif::ProgressBar;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use std::fmt::Debug;
-use std::{collections::HashMap, hash::Hash, sync::Arc};
+use hashbrown::HashMap;
 use std::{
     ffi::OsString,
     fs,
     io::{stdin, stdout, Write},
     path::PathBuf,
-    sync::{Mutex, RwLock},
+    sync::{Mutex, Arc, atomic::AtomicBool},
     time::SystemTime,
+    fmt::Debug,
+    os::unix::fs::MetadataExt,
+    hash::Hash
 };
-
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     /// A Lazy static reference to hold a list of File Paths
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
-    /// A Lazy static reference which hold a RwLock on a bool used for verbose printing
-    pub static ref VERBOSE: RwLock<bool> = RwLock::new(false);
+    /// A Lazy static reference which hold a AtomicBool used for verbose printing
+    pub static ref VERBOSE: AtomicBool = AtomicBool::new(false);
+    /// A Lazy static reference which hold the file sizes in bytes
+    pub static ref FILES_SIZE_BYTES: Mutex<Option<u64>> = Mutex::new(Some(0));
 }
 
 
@@ -61,8 +64,9 @@ pub fn confirmation() -> String {
 macro_rules! logger {
     ($value: literal, $item: expr, $item2: expr) => {
         use super::VERBOSE;
+        use std::sync::atomic::Ordering;
 
-        if *VERBOSE.read().unwrap() {
+        if VERBOSE.load(Ordering::Relaxed) {
             println!($value, $item, $item2);
         }
     };
@@ -98,13 +102,30 @@ pub fn recurse_dirs(item: &PathBuf) {
                     recurse_dirs(&entry.path());
                 } else {
                     FILE_LIST.lock().unwrap().push(entry.path());
+                    if cfg!(unix) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                                Some(o) => {*o +=  match entry.path().metadata() {
+                                    Ok(p) => p.size(),
+                                    Err(_) => 0
+                                } },
+                                None => {}
+                            }
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().file_size();
+                        }                        
+                    }
                 }
             }
         }
     }
 }
 
-/// This free standing function helps to display all the duplicate file and their respective groups file sizes
+/// This free standing function helps to display all the duplicate file and their respective groups file sizes.
 /// It filters for duplicate files from the provided arc_vec_paths HashMap, and figures out the file sizes for each 
 /// group based on arc_capacities HashMap. Once the filtering and printing to screen is completed, it return the total number of duplicate records count
 pub fn print_duplicates<T, U, K>(
@@ -173,9 +194,9 @@ pub fn sort_and_group_duplicates(
 
     let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
 
-    let _: Vec<_> = num_hashes_vec
+    num_hashes_vec
         .par_iter_mut()
-        .map(|x| {
+        .for_each(|x| {
             let r = &x.path_buf;
             let r1 = &x.hash_to_bigint;
             if hashmap_accumulator.lock().unwrap().contains_key(r1) {
@@ -194,8 +215,7 @@ pub fn sort_and_group_duplicates(
                     .insert(r1.clone(), vec![r.clone()]);
             }
             bar.inc(1);
-        })
-        .collect();
+        });
 
     hashmap_accumulator
 }

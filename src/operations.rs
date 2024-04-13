@@ -5,10 +5,10 @@ use md5::compute;
 use num_bigint::BigUint;
 use std::sync::Mutex;
 use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData};
+use hashbrown::HashMap;
+use gxhash::{GxHasher};
 use std::ffi::OsString;
-use std::collections::hash_map::DefaultHasher;
 use std::{
-    collections::HashMap,
     fmt::Write,
     fs::File,
     hash::{Hash, Hasher},
@@ -109,7 +109,7 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                             file_size,
                         };
 
-                        let mut file_metadata_hasher = DefaultHasher::new();
+                        let mut file_metadata_hasher = GxHasher::default();
                         duplicates_by_metadata.hash(&mut file_metadata_hasher);
 
                         let hash_u64: u64 = file_metadata_hasher.finish();

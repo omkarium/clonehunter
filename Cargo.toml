@@ -1,13 +1,13 @@
 [package]
 name = "clonehunter"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "An ultra simple command line utility that identifies groups of identical files and displays them to the console"
 authors = ["Venkatesh Omkaram"]
 notices = ["Copyright (c) 2023 Venkatesh Omkaram"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/omkarium/clonehunter"
-homepage = "https://github.com/omkarium/rufendec"
+homepage = "https://github.com/omkarium/clonehunter"
 readme = "README.md"
 keywords = ["duplicate", "dupe", "finder"]
 categories = ["filesystem", "command-line-utilities"]
@@ -34,6 +34,8 @@ num-bigint = "0.4.4"
 indicatif = "0.17.7"
 human_bytes = "0.4.3"
 colored = "2.1.0"
+hashbrown = "0.14.3"
+gxhash = "3.1.1"
 
 [profile.release]
 opt-level = 'z'

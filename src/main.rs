@@ -29,12 +29,12 @@
 //! 
 //! Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission.
 mod operations;
-use common::{confirmation, recurse_dirs, DIR_LIST, FILE_LIST, VERBOSE};
+use common::{confirmation, recurse_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use crate::operations::run;
 use clap::Parser;
-use std::env;
-use std::{path::PathBuf, time::Instant};
+use std::{env, path::PathBuf, time::Instant, sync::atomic::Ordering};
 use colored::Colorize;
+use human_bytes::human_bytes;
 
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
@@ -52,17 +52,18 @@ struct Args {
     verbose: bool    
 }
 
-
 fn main() {
     let args = Args::parse();
 
-    *VERBOSE.write().unwrap() = args.verbose;
+    VERBOSE.store(args.verbose, Ordering::Relaxed);
 
     let path = PathBuf::from(args.source_dir.clone());
 
     DIR_LIST.lock().unwrap().push(path.clone());
 
     recurse_dirs(&path);
+    
+    let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
 
     println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
     println!("\n{}\n", 
@@ -72,8 +73,10 @@ fn main() {
     println!("The source directory you provided             : {}", args.source_dir);
     println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
     println!("Total files found in the directories          : {}",FILE_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
     println!("Total threads about to be used                : {}", args.threads);
     println!("Perform a Checksum?                           : {}", args.checksum);
+    println!("Verbose printing  ?                           : {}", args.verbose);
     println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
