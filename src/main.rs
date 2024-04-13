@@ -12,12 +12,14 @@
 //! 
 //! # Example usage:
 //!  ```
-//! clonehunter your-folder-path -t 12 -c -v
+//! clonehunter your-folder-path -t 12 -c -v -m 50
 //! 
 //!  ```
 //! `-c` stands for checksum. If you pass this option, clonehunter will find the file clones (aka duplicate files or identical files) 
 //! based on a partial checksum by reading bytes from the beginning and the ending of the file content.
 //! If you do not pass -c option, then clonehunter will scan for clones based on a combination of file name, modified time and file size hash combined.
+//! 
+//! `-m` stands for max depth. The number after -m indicates how many sub levels we need to look for clones. The default value is 10. If you do not wish to specify a max depth, then pass the option `--no-max-depth`
 //! 
 //! `-v` stands for verbose. It prints the hashes of each and every file for you to compare and manually figure out clones.
 //! 
@@ -29,7 +31,7 @@
 //! 
 //! Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission.
 mod operations;
-use common::{confirmation, recurse_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
+use common::{confirmation, recurse_dirs, walk_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use crate::operations::run;
 use clap::Parser;
 use std::{env, path::PathBuf, time::Instant, sync::atomic::Ordering};
@@ -39,9 +41,15 @@ use human_bytes::human_bytes;
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
 struct Args {
-    /// Enter the Source Dir here (This is the directory under which you are looking for the identical files)
+    /// Pass the Source Directory (This is the directory under which will be looking for the identical files <Aka clones>)
     source_dir: String,
-    /// Print verbose output
+    /// Pass the Maximum Depth of directories to scan
+    #[clap(short, long, default_value_t = 10)]
+    max_depth: usize,
+    /// Use this option if you don't wish to specify a max_depth.
+    #[clap(long, default_value_t = false)]
+    no_max_depth: bool,
+    /// Hunt for clones by performing partial file checksums.
     #[clap(short, long, default_value_t = false)]
     checksum: bool,
     /// Threads to speed up the execution
@@ -59,9 +67,13 @@ fn main() {
 
     let path = PathBuf::from(args.source_dir.clone());
 
-    DIR_LIST.lock().unwrap().push(path.clone());
+    if args.no_max_depth {
+        DIR_LIST.lock().unwrap().push(path.clone());
+        recurse_dirs(&path);
+    } else {
+        walk_dirs(&path, args.max_depth, args.threads);
+    }
 
-    recurse_dirs(&path);
     
     let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
 
@@ -71,12 +83,13 @@ fn main() {
     println!("\n**** Operational Info ****\n");
     println!("Operating system                              : {}", env::consts::OS);
     println!("The source directory you provided             : {}", args.source_dir);
+    println!("Maximum depth of directories to look for      : {}", if args.no_max_depth { "Ignored".to_owned() } else { args.max_depth.to_string() });
     println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
     println!("Total files found in the directories          : {}",FILE_LIST.lock().unwrap().to_vec().capacity());
     println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
     println!("Total threads about to be used                : {}", args.threads);
     println!("Perform a Checksum?                           : {}", args.checksum);
-    println!("Verbose printing  ?                           : {}", args.verbose);
+    println!("Verbose printing?                             : {}", args.verbose);
     println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 

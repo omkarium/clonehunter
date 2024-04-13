@@ -66,85 +66,84 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                     let pb = pb.clone();
                     let pb_increment = pb_increment.clone();
 
-                    let file_name = if let Some(file_name) = path.as_path().file_name() {
-                        file_name.to_owned()
-                    } else {
-                        break;
-                    };
-                    
-                    let modified_date = if let Ok(modified_date) = path.metadata() {
-                        if let Ok(system_time) = modified_date.modified() {
-                            system_time
-                        } else {
-                            break;
+                    if let Some(file_name) = path.as_path().file_name() {
+                        if let Some(file_name) = file_name.to_str() {
+                            let modified_date = 
+                                if let Ok(modified_date) = path.metadata() {
+                                    if let Ok(system_time) = modified_date.modified() {
+                                        system_time
+                                    } else {
+                                        break;
+                                    }
+                                } else {
+                                    break;
+                                };
+    
+                            let mut file_size = 0;
+    
+                            if cfg!(unix) {
+                                #[cfg(target_os = "linux")]
+                                {
+                                    file_size = path.metadata().unwrap().size();
+                                }
+                            } else if cfg!(windows) {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    file_size = path.metadata().unwrap().file_size();
+                                }                        
+                            };
+    
+                            let hashmap_for_duplicates_meta = hashmap_for_duplicates_meta.clone();
+                            let hashmap_for_duplicates_meta_caps = hashmap_for_duplicates_meta_caps.clone();
+    
+                            s.spawn(move |_| {
+                                let pb = pb.clone();
+                                pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
+                                *pb_increment.lock().unwrap() += 1;
+                                let duplicates_by_metadata = FileMetaData {
+                                    file_name,
+                                    modified_date,
+                                    file_size,
+                                };
+        
+                                let mut file_metadata_hasher = GxHasher::default();
+                                duplicates_by_metadata.hash(&mut file_metadata_hasher);
+        
+                                let hash_u64: u64 = file_metadata_hasher.finish();
+                                hashmap_for_duplicates_meta_caps
+                                    .lock()
+                                    .unwrap()
+                                    .insert(hash_u64, file_size);
+        
+                                logger!("hash {:?} -> file {:?}", hash_u64, path);
+        
+                                if hashmap_for_duplicates_meta
+                                    .lock()
+                                    .unwrap()
+                                    .contains_key(&hash_u64)
+                                {
+                                    let mut path_vec = hashmap_for_duplicates_meta
+                                        .lock()
+                                        .unwrap()
+                                        .get(&hash_u64)
+                                        .unwrap()
+                                        .to_owned();
+                                    
+                                    path_vec.push(path.to_owned().into_os_string());
+                                    
+                                    hashmap_for_duplicates_meta
+                                        .lock()
+                                        .unwrap()
+                                        .insert(hash_u64, path_vec);
+                                } else {
+                                    hashmap_for_duplicates_meta
+                                        .lock()
+                                        .unwrap()
+                                        .insert(hash_u64, vec![path.to_owned().into_os_string()]);
+                                }
+                            });
                         }
-                    } else {
-                        break;
-                    };
-
-                    let mut file_size = 0;
-
-                    if cfg!(unix) {
-                        #[cfg(target_os = "linux")]
-                        {
-                            file_size = path.metadata().unwrap().size();
-                        }
-                    } else if cfg!(windows) {
-                        #[cfg(target_os = "windows")]
-                        {
-                            file_size = path.metadata().unwrap().file_size();
-                        }                        
-                    };
-
-                    let hashmap_for_duplicates_meta = hashmap_for_duplicates_meta.clone();
-                    let hashmap_for_duplicates_meta_caps = hashmap_for_duplicates_meta_caps.clone();
-
-                    s.spawn(move |_| {
-                        let pb = pb.clone();
-                        pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
-                        *pb_increment.lock().unwrap() += 1;
-                        let duplicates_by_metadata = FileMetaData {
-                            file_name: file_name.to_str().unwrap(),
-                            modified_date,
-                            file_size,
-                        };
-
-                        let mut file_metadata_hasher = GxHasher::default();
-                        duplicates_by_metadata.hash(&mut file_metadata_hasher);
-
-                        let hash_u64: u64 = file_metadata_hasher.finish();
-                        hashmap_for_duplicates_meta_caps
-                            .lock()
-                            .unwrap()
-                            .insert(hash_u64, file_size);
-
-                        logger!("hash {:?} -> file {:?}", hash_u64, path);
-
-                        if hashmap_for_duplicates_meta
-                            .lock()
-                            .unwrap()
-                            .contains_key(&hash_u64)
-                        {
-                            let mut path_vec = hashmap_for_duplicates_meta
-                                .lock()
-                                .unwrap()
-                                .get(&hash_u64)
-                                .unwrap()
-                                .to_owned();
-                            
-                            path_vec.push(path.to_owned().into_os_string());
-                            
-                            hashmap_for_duplicates_meta
-                                .lock()
-                                .unwrap()
-                                .insert(hash_u64, path_vec);
-                        } else {
-                            hashmap_for_duplicates_meta
-                                .lock()
-                                .unwrap()
-                                .insert(hash_u64, vec![path.to_owned().into_os_string()]);
-                        }
-                    });
+                    }
                 }
             })
         });

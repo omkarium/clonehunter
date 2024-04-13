@@ -17,10 +17,12 @@ To install the program permanently on your system do `cargo install clonehunter`
 
 # Example usage:
  ```
-clonehunter your-folder-path -t 12 -c -v
+clonehunter your-folder-path -t 12 -c -v -m 50
  ```
 `-c` stands for checksum. If you pass this option, clonehunter will find the file clones (aka duplicate files or identical files) based on a partial checksum by reading bytes from the beginning and the ending of the file content.
 If you do not pass -c option, then clonehunter will scan for clones based on a combination of file name, modified time and file size hash combined.
+
+`-m` stands for max depth. The number after -m indicates how many sub levels we need to look for clones. The default value is 10. If you do not wish to specify a max depth, then pass the option `--no-max-depth`
 
 `-v` stands for verbose. It prints the hashes of each and every file for you to compare and manually figure out clones.
 

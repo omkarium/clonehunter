@@ -1,24 +1,30 @@
 //! This library crate is only for internal use. Do not use it in your own projects independently.
 
 // Copyright (c) 2024 Venkatesh Omkaram
-
+mod stupid_traits;
+use stupid_traits::*;
+use hashbrown::HashMap;
 use human_bytes::human_bytes;
 use indicatif::ProgressBar;
+use jwalk::WalkDir;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use hashbrown::HashMap;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
-    ffi::OsString,
-    fs,
+    fmt::Debug,
+    fs::{self},
+    hash::Hash,
     io::{stdin, stdout, Write},
     path::PathBuf,
-    sync::{Mutex, Arc, atomic::AtomicBool},
+    sync::{atomic::AtomicBool, Arc, Mutex},
     time::SystemTime,
-    fmt::Debug,
-    os::unix::fs::MetadataExt,
-    hash::Hash
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::MetadataExt;
+
+#[cfg(target_os = "windows")]
+use std::os::windows::fs::MetadataExt;
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -30,7 +36,6 @@ lazy_static! {
     /// A Lazy static reference which hold the file sizes in bytes
     pub static ref FILES_SIZE_BYTES: Mutex<Option<u64>> = Mutex::new(Some(0));
 }
-
 
 /// This function can be used for all sorts of confirmation input from the user
 pub fn confirmation() -> String {
@@ -56,7 +61,6 @@ pub fn confirmation() -> String {
 
     confirmation
 }
-
 
 /// A simple macro which prints two items only when verbose printing is specified.
 /// VERBOSE is a RwLock
@@ -87,46 +91,78 @@ struct Grouper {
     path_buf: PathBuf,
 }
 
-/// Used to recursively capture path entries and capture them separately in two separate Vecs
-/// DIR_LIST is used to hold Directory paths
-/// FILE_LIST is used to hold File paths
-pub fn recurse_dirs(item: &PathBuf) {
-    if item.is_dir() {
-        if let Ok(paths) = fs::read_dir(item) {
-            for path in paths {
-                let metadata = path.as_ref().unwrap().metadata();
-                let entry = path.as_ref().unwrap();
-                if metadata.unwrap().is_dir() {
-                    let base_path = entry.path();
-                    DIR_LIST.lock().unwrap().push(base_path);
-                    recurse_dirs(&entry.path());
-                } else {
-                    FILE_LIST.lock().unwrap().push(entry.path());
-                    if cfg!(unix) {
-                        #[cfg(target_os = "linux")]
-                        {
-                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                                Some(o) => {*o +=  match entry.path().metadata() {
-                                    Ok(p) => p.size(),
-                                    Err(_) => 0
-                                } },
-                                None => {}
-                            }
+//Common code for recurse_dirs and walk_dirs
+fn walk_and_recurse_dirs_inner<T, K, U>(path: T)
+where
+    T: CommonDirWalker<K, U>,
+    K: MetaDataPathBufCommon,
+    U: MetaDataPathBufCommon,
+{
+    let metadata = path.metadata_custom();
+    let entry = path.unwrap_custom();
+
+    if metadata.result_unwrap().is_dir() {
+        let base_path = entry.get_path();
+        DIR_LIST.lock().unwrap().push(base_path);
+        recurse_dirs(&entry.get_path());
+    } else {
+        FILE_LIST.lock().unwrap().push(entry.get_path());
+        if cfg!(unix) {
+            #[cfg(target_os = "linux")]
+            {
+                match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                    Some(o) => {
+                        *o += match entry.get_path().metadata() {
+                            Ok(p) => p.size(),
+                            Err(_) => 0,
                         }
-                    } else if cfg!(windows) {
-                        #[cfg(target_os = "windows")]
-                        {
-                            *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().file_size();
-                        }                        
                     }
+                    None => {}
                 }
+            }
+        } else if cfg!(windows) {
+            #[cfg(target_os = "windows")]
+            {
+                *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().file_size();
             }
         }
     }
 }
 
+/// Used to recursively capture path entries and capture them separately in two separate Vecs. 
+/// DIR_LIST is used to hold Directory paths. 
+/// FILE_LIST is used to hold File. 
+pub fn recurse_dirs(item: &PathBuf) {
+    if item.is_dir() {
+        if let Ok(paths) = fs::read_dir(item) {
+            for path in paths {
+                walk_and_recurse_dirs_inner(path);
+            }
+        }
+    }
+}
+
+/// Used to recursively capture path entries and capture them separately in two separate Vecs. 
+/// DIR_LIST is used to hold Directory paths. 
+/// FILE_LIST is used to hold File paths. 
+/// But uses WalkDir and Rayon to make it fast.
+pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8) {
+    if item.is_dir() {
+        let _: Vec<_> = WalkDir::new(item)
+            .max_depth(max_depth)
+            .parallelism(jwalk::Parallelism::RayonNewPool(threads.into()))
+            .into_iter()
+            .par_bridge()
+            .filter_map(|dir_entry| {
+                walk_and_recurse_dirs_inner(dir_entry);
+                Some(())
+            })
+            .collect();
+    }
+}
+
 /// This free standing function helps to display all the duplicate file and their respective groups file sizes.
-/// It filters for duplicate files from the provided arc_vec_paths HashMap, and figures out the file sizes for each 
+/// It filters for duplicate files from the provided arc_vec_paths HashMap, and figures out the file sizes for each
 /// group based on arc_capacities HashMap. Once the filtering and printing to screen is completed, it return the total number of duplicate records count
 pub fn print_duplicates<T, U, K>(
     arc_vec_paths: &mut Arc<Mutex<HashMap<K, T>>>,
@@ -162,7 +198,7 @@ where
     duplicates_count
 }
 
-/// This function helps in Sorting the vec of Hash digest and filePath
+/// This function helps in sorting the vec of Hash digest and filePath.
 /// Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
 pub fn sort_and_group_duplicates(
     list_hashes: Vec<(md5::Digest, &std::path::Path)>,
@@ -194,61 +230,27 @@ pub fn sort_and_group_duplicates(
 
     let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
 
-    num_hashes_vec
-        .par_iter_mut()
-        .for_each(|x| {
-            let r = &x.path_buf;
-            let r1 = &x.hash_to_bigint;
-            if hashmap_accumulator.lock().unwrap().contains_key(r1) {
-                let mut new = hashmap_accumulator
-                    .lock()
-                    .unwrap()
-                    .get(r1)
-                    .unwrap()
-                    .to_owned();
-                new.push(r.clone());
-                hashmap_accumulator.lock().unwrap().insert(r1.clone(), new);
-            } else {
-                hashmap_accumulator
-                    .lock()
-                    .unwrap()
-                    .insert(r1.clone(), vec![r.clone()]);
-            }
-            bar.inc(1);
-        });
+    num_hashes_vec.par_iter_mut().for_each(|x| {
+        let r = &x.path_buf;
+        let r1 = &x.hash_to_bigint;
+        if hashmap_accumulator.lock().unwrap().contains_key(r1) {
+            let mut new = hashmap_accumulator
+                .lock()
+                .unwrap()
+                .get(r1)
+                .unwrap()
+                .to_owned();
+            new.push(r.clone());
+            hashmap_accumulator.lock().unwrap().insert(r1.clone(), new);
+        } else {
+            hashmap_accumulator
+                .lock()
+                .unwrap()
+                .insert(r1.clone(), vec![r.clone()]);
+        }
+        bar.inc(1);
+    });
 
     hashmap_accumulator
 }
 
-
-/// A simple trait to cast implementors to f64. Pretty useful in Function which takes Generic arguments
-pub trait AsF64 {
-    fn cast(&self) -> f64;
-}
-
-
-impl AsF64 for u64 {
-    fn cast(&self) -> f64 {
-        *self as f64
-    }
-}
-
-
-/// A simple trait to return length of its implementors. Pretty useful in Function which takes Generic arguments
-pub trait ExactSize {
-    fn len(&self) -> usize;
-}
-
-
-impl ExactSize for Vec<PathBuf> {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}
-
-
-impl ExactSize for Vec<OsString> {
-    fn len(&self) -> usize {
-        self.len()
-    }
-}

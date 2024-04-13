@@ -36,6 +36,7 @@ human_bytes = "0.4.3"
 colored = "2.1.0"
 hashbrown = "0.14.3"
 gxhash = "3.1.1"
+jwalk = "0.8.1"
 
 [profile.release]
 opt-level = 'z'
