@@ -123,7 +123,7 @@ where
         } else if cfg!(windows) {
             #[cfg(target_os = "windows")]
             {
-                *FILES_SIZE_BYTES.lock().unwrap() += entry.path().metadata().unwrap().file_size();
+                *FILES_SIZE_BYTES.lock().unwrap() += entry.get_path().metadata().unwrap().file_size();
             }
         }
     }
