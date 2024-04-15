@@ -143,7 +143,8 @@ pub fn recurse_dirs(item: &PathBuf) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
             for path in paths {
-                walk_and_recurse_dirs_inner(path);
+                walk_and_recurse_dirs_inner(&path);
+                recurse_dirs(&path.unwrap().path())
             }
         }
     }
@@ -156,12 +157,13 @@ pub fn recurse_dirs(item: &PathBuf) {
 pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8) {
     if item.is_dir() {
         let _: Vec<_> = WalkDir::new(item)
+            .skip_hidden(false)
             .max_depth(max_depth)
             .parallelism(jwalk::Parallelism::RayonNewPool(threads.into()))
             .into_iter()
             .par_bridge()
             .filter_map(|dir_entry| {
-                walk_and_recurse_dirs_inner(dir_entry);
+                walk_and_recurse_dirs_inner(&dir_entry);
                 Some(())
             })
             .collect();

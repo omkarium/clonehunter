@@ -9,30 +9,30 @@ use std::{ffi::OsString, fs::{self, DirEntry, Metadata}, path::PathBuf};
 
 pub(crate) trait CommonDirWalker<K, U> {
     fn metadata_custom(&self) -> K;
-    fn unwrap_custom(self) -> U;
+    fn unwrap_custom(&self) -> U;
 }
 
-impl CommonDirWalker<Result<fs::Metadata, jwalk::Error>, jwalk::DirEntry<((), ())>>
-    for Result<jwalk::DirEntry<((), ())>, jwalk::Error>
+impl<'a> CommonDirWalker<Result<fs::Metadata, jwalk::Error>, &'a jwalk::DirEntry<((), ())>>
+    for &'a Result<jwalk::DirEntry<((), ())>, jwalk::Error>
 {
     fn metadata_custom(&self) -> Result<fs::Metadata, jwalk::Error> {
         self.as_ref().unwrap().metadata()
     }
 
-    fn unwrap_custom(self) -> jwalk::DirEntry<((), ())> {
-        self.unwrap()
+    fn unwrap_custom(&self) -> &'a jwalk::DirEntry<((), ())> {
+        self.as_ref().unwrap()
     }
 }
 
-impl CommonDirWalker<Result<fs::Metadata, std::io::Error>, DirEntry>
-    for Result<DirEntry, std::io::Error>
+impl<'a> CommonDirWalker<Result<fs::Metadata, std::io::Error>, &'a DirEntry>
+    for &'a Result<DirEntry, std::io::Error>
 {
     fn metadata_custom(&self) -> Result<fs::Metadata, std::io::Error> {
         self.as_ref().unwrap().metadata()
     }
 
-    fn unwrap_custom(self) -> DirEntry {
-        self.unwrap()
+    fn unwrap_custom(&self) -> &'a DirEntry {
+        self.as_ref().unwrap()
     }
 }
 
@@ -61,7 +61,7 @@ impl MetaDataPathBufCommon for Result<fs::Metadata, std::io::Error> {
     }
 }
 
-impl MetaDataPathBufCommon for DirEntry {
+impl MetaDataPathBufCommon for &DirEntry {
     fn result_unwrap(self) -> Metadata {
         unimplemented!()
     }
@@ -71,7 +71,7 @@ impl MetaDataPathBufCommon for DirEntry {
     }
 }
 
-impl MetaDataPathBufCommon for jwalk::DirEntry<((), ())> {
+impl MetaDataPathBufCommon for &jwalk::DirEntry<((), ())> {
     fn result_unwrap(self) -> Metadata {
         unimplemented!()
     }

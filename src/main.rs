@@ -85,7 +85,7 @@ fn main() {
     println!("The source directory you provided             : {}", args.source_dir);
     println!("Maximum depth of directories to look for      : {}", if args.no_max_depth { "Ignored".to_owned() } else { args.max_depth.to_string() });
     println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
-    println!("Total files found in the directories          : {}",FILE_LIST.lock().unwrap().to_vec().capacity());
+    println!("Total files found in the directories          : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
     println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
     println!("Total threads about to be used                : {}", args.threads);
     println!("Perform a Checksum?                           : {}", args.checksum);
@@ -103,8 +103,8 @@ fn main() {
         println!("\n============Results==============\n");
         
         println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
-        println!("Total duplicate records found {}", dup_count);
-        println!("\nWe are done. Enjoy hacker!!! 😎");
+        println!("Total duplicate records found: {}", dup_count);
+        println!("\nWe are done. Have a nice day 😎");
 
         println!("\n=================================\n");
     } else {
