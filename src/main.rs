@@ -34,7 +34,7 @@ mod operations;
 use common::{confirmation, recurse_dirs, walk_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use crate::operations::run;
 use clap::Parser;
-use std::{env, path::PathBuf, time::Instant, sync::atomic::Ordering};
+use std::{env, path::PathBuf, time::Instant};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -63,7 +63,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    VERBOSE.store(args.verbose, Ordering::Relaxed);
+    unsafe { VERBOSE = args.verbose; }
 
     let path = PathBuf::from(args.source_dir.clone());
 

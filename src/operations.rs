@@ -6,7 +6,7 @@ use num_bigint::BigUint;
 use std::sync::Mutex;
 use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData};
 use hashbrown::HashMap;
-use gxhash::{GxHasher};
+use gxhash::GxHasher;
 use std::ffi::OsString;
 use std::{
     fmt::Write,
@@ -39,7 +39,7 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
     let list_hashes: Arc<Mutex<Vec<(md5::Digest, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
     let list_hashes_caps: Arc<Mutex<HashMap<BigUint, u64>>> = Arc::new(Mutex::new(HashMap::new()));
-    let pb = Arc::new(Mutex::new(ProgressBar::new(paths.capacity() as u64)));
+    let pb = Arc::new(Mutex::new(ProgressBar::new(paths.len() as u64)));
     let mut hashmap_for_duplicates_meta: Arc<Mutex<HashMap<u64, Vec<OsString>>>> =
         Arc::new(Mutex::new(HashMap::new()));
     let hashmap_for_duplicates_meta_caps: Arc<Mutex<HashMap<u64, u64>>> =
@@ -168,10 +168,8 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                     // Spawn the threads here
                     s.spawn(move |_| {
                         let pb = pb.clone();
-
                         pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
-                        *pb_increment.lock().unwrap() += 1;
-                        
+
                         match File::open(path) {
                             Ok(file) => {
                                 let mut reader = BufReader::new(file);
@@ -217,9 +215,11 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                                     .unwrap();
     
                                 list_hashes_caps.lock().unwrap().insert(hash_to_bigint, cap);
+                                
                                 },
                             Err(e) => println!("File {:?} {:?}", path, e.kind()),
                         }
+                        *pb_increment.lock().unwrap() += 1;
                     });
                 }
             });

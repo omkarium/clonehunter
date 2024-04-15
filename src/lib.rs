@@ -16,7 +16,7 @@ use std::{
     hash::Hash,
     io::{stdin, stdout, Write},
     path::PathBuf,
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{Arc, Mutex},
     time::SystemTime,
 };
 
@@ -31,11 +31,12 @@ lazy_static! {
     pub static ref DIR_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     /// A Lazy static reference to hold a list of File Paths
     pub static ref FILE_LIST: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
-    /// A Lazy static reference which hold a AtomicBool used for verbose printing
-    pub static ref VERBOSE: AtomicBool = AtomicBool::new(false);
     /// A Lazy static reference which hold the file sizes in bytes
     pub static ref FILES_SIZE_BYTES: Mutex<Option<u64>> = Mutex::new(Some(0));
 }
+
+pub static mut VERBOSE: bool = false;
+
 
 /// This function can be used for all sorts of confirmation input from the user
 pub fn confirmation() -> String {
@@ -67,10 +68,9 @@ pub fn confirmation() -> String {
 #[macro_export]
 macro_rules! logger {
     ($value: literal, $item: expr, $item2: expr) => {
-        use super::VERBOSE;
-        use std::sync::atomic::Ordering;
+        use common::VERBOSE;
 
-        if VERBOSE.load(Ordering::Relaxed) {
+        if unsafe {VERBOSE} {
             println!($value, $item, $item2);
         }
     };
