@@ -15,7 +15,7 @@ If you are running this program via Cargo, then run `cargo run -- --help` from t
 
 To install the program permanently on your system do `cargo install clonehunter`.
 
-# Example usage:
+## Example usage:
  ```
 clonehunter your-folder-path -t 12 -c -v -m 50
  ```
@@ -27,6 +27,28 @@ If you do not pass -c option, then clonehunter will scan for clones based on a c
 `-v` stands for verbose. It prints the hashes of each and every file for you to compare and manually figure out clones.
 
 `-t` stands for threads. Choose the number of threads to allocate the program to hunt. In the above example I am using 12 threads.
+
+## How it works?
+There are two modes the program looks for duplicate files.
+1. Without checksum calculation
+2. With checksum calculation (by passing `-c`)
+
+### Without checksum calculation: 
+This applies when you do not pass a `-c` option. The program will look for clones based on a hash operation performed on the combination of file size, file name and modified times.
+- If two file names and file size are the same, that does not qualify as a clone
+- If two files file sizes and modified times are the same, that does not qualify as a clone
+- If two file names and modified times are the same, that does not qualify as a clone
+- Finally, if two file names, file size and modified times all are the same then it is definitely a clone
+
+Now, the question may arise, what if there are two files with different file names, but the content inside is absolute the same, regardless of the modified time? It must be a clone correct? Yes. This is where 'With checksum calculation' `-c` option helps.
+
+### With checksum calculation:
+A checksum is also a hash, but this is performed on the file content instead of the file metadata such as name, size and time.
+
+- If the file size is less than (<) 1 MB, then a checksum is performed on entire length of the file data.
+- If the file size is greater than (>) 1 MB, then the program takes the first 1 MB, the last 1 MB of the file and the file size is all combined together and a hash is taken on it. This way, we can be sure if two files are absolutely clones without performing a checksum on the whole length of the file
+
+
 
 ## Some considerations
 The program scans and outputs identical files based on best effort basis. This means that not all files it reports on can be deemed as 'Absolutely identical'. So, the key term here is "Possibly identical". This tool can be used when you want to do a quick analysis to see which files are POSSIBLY identical. This tool must not be used in critical places and business solutions, and must not be considered as the source of truth to delete any of those found identical files.

@@ -32,9 +32,10 @@
 //! Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission.
 mod operations;
 use common::{confirmation, recurse_dirs, walk_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
+use indicatif::{ProgressBar, ProgressStyle};
 use crate::operations::run;
 use clap::Parser;
-use std::{env, path::PathBuf, time::Instant};
+use std::{env, path::PathBuf, time::{Duration, Instant}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -61,6 +62,29 @@ struct Args {
 }
 
 fn main() {
+    println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
+    println!("\n{}\n", 
+    "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
+
+    let pb = ProgressBar::new_spinner();
+    pb.enable_steady_tick(Duration::from_millis(120));
+    pb.set_style(
+        ProgressStyle::with_template("{spinner:.blue} {msg} {spinner:.blue}")
+            .unwrap()
+            // For more spinners check out the cli-spinners project:
+            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+            .tick_strings(&[
+                "▹▹▹▹▹",
+                "▸▹▹▹▹",
+                "▹▸▹▹▹",
+                "▹▹▸▹▹",
+                "▹▹▹▸▹",
+                "▹▹▹▹▸",
+                "▪▪▪▪▪",
+            ]),
+    );
+    pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
+
     let args = Args::parse();
 
     unsafe { VERBOSE = args.verbose; }
@@ -74,13 +98,11 @@ fn main() {
         walk_dirs(&path, args.max_depth, args.threads);
     }
 
+    pb.finish_with_message("Scan completed");
     
     let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
 
-    println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
-    println!("\n{}\n", 
-    "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
-    println!("\n**** Operational Info ****\n");
+    println!("\n\n**** Operational Info ****\n");
     println!("Operating system                              : {}", env::consts::OS);
     println!("The source directory you provided             : {}", args.source_dir);
     println!("Maximum depth of directories to look for      : {}", if args.no_max_depth { "Ignored".to_owned() } else { args.max_depth.to_string() });
