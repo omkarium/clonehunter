@@ -12,10 +12,10 @@ use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
     fmt::Debug,
-    fs::{self},
+    fs,
     hash::Hash,
     io::{stdin, stdout, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::SystemTime,
 };
@@ -210,25 +210,18 @@ where
 /// This function helps in sorting the vec of Hash digest and filePath.
 /// Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
 pub fn sort_and_group_duplicates(
-    list_hashes: Vec<(md5::Digest, &std::path::Path)>,
+    list_hashes: &[(BigUint, &Path)],
 ) -> Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> {
+
     let num_hashes_vec = Arc::new(Mutex::new(Vec::new()));
     let bar = ProgressBar::new(num_hashes_vec.lock().unwrap().len() as u64);
-    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> = Arc::new(Mutex::new(HashMap::new()));
 
-    for (i, k) in list_hashes {
-        let hash_to_bigint =
-            i.0.iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<String>>()
-                .concat()
-                .parse::<BigUint>()
-                .unwrap()
-                .into();
+
+    for (i, k) in list_hashes.into_iter() {
 
         num_hashes_vec.lock().unwrap().push(Grouper {
-            hash_to_bigint,
+            hash_to_bigint: i.to_owned(),
             path_buf: k.to_owned().into(),
         });
     }

@@ -36,12 +36,16 @@ use std::os::windows::fs::MetadataExt;
 /// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand 
 /// and last few thousand bytes. This makes it fast and not resource hungry.
 pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
-    let list_hashes: Arc<Mutex<Vec<(md5::Digest, &std::path::Path)>>> =
+
+    let list_hashes: Arc<Mutex<Vec<(BigUint, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
+
     let list_hashes_caps: Arc<Mutex<HashMap<BigUint, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     let pb = Arc::new(Mutex::new(ProgressBar::new(paths.len() as u64)));
+
     let mut hashmap_for_duplicates_meta: Arc<Mutex<HashMap<u64, Vec<OsString>>>> =
         Arc::new(Mutex::new(HashMap::new()));
+
     let hashmap_for_duplicates_meta_caps: Arc<Mutex<HashMap<u64, u64>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
@@ -174,9 +178,9 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                             Ok(file) => {
                                 let mut reader = BufReader::new(file);
     
-                                let cap = path.metadata().unwrap().len();
+                                let file_length = path.metadata().unwrap().len();
     
-                                let hash_combine = if cap > 2048 {
+                                let hash_combine = if file_length > 2048 {
                                     let mut buffer_front = vec![0; 1024];
                                     let _ = reader.read_exact(&mut buffer_front);
     
@@ -185,27 +189,16 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                                     let mut buffer_back = vec![0; 1024];
                                     let _ = reader.read_exact(&mut buffer_back);
     
-                                    compute([buffer_front, buffer_back].concat())
+                                    compute([buffer_front, buffer_back, file_length.to_le_bytes().to_vec()].concat())
                                 } else {
-                                    let mut buffer_front =
-                                        vec![0; <u64 as TryInto<usize>>::try_into(cap).unwrap() / 2];
+                                    let mut buffer_full =
+                                        vec![0; <u64 as TryInto<usize>>::try_into(file_length).unwrap()];
                                     
-                                    let _ = reader.read_exact(&mut buffer_front);
-                                    let cap_i64 = <u64 as TryInto<i64>>::try_into(cap).unwrap() / 2;
-    
-                                    let _ = reader.seek_relative(-cap_i64);
-    
-                                    let mut buffer_back = vec![0; cap_i64.try_into().unwrap()];
-                                    let _ = reader.read_exact(&mut buffer_back);
-    
-                                    compute([buffer_front, buffer_back].concat())
+                                    let _ = reader.read_exact(&mut buffer_full);
+                                  
+                                    compute(buffer_full)
                                 };
-    
-                                list_hashes
-                                    .lock()
-                                    .unwrap()
-                                    .push((hash_combine, path.as_path()));
-    
+
                                 let hash_to_bigint = hash_combine
                                     .iter()
                                     .map(|x| x.to_string())
@@ -214,7 +207,14 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                                     .parse::<BigUint>()
                                     .unwrap();
     
-                                list_hashes_caps.lock().unwrap().insert(hash_to_bigint, cap);
+                                list_hashes
+                                    .lock()
+                                    .unwrap()
+                                    .push((hash_to_bigint.clone(), path.as_path()));
+    
+                                
+    
+                                list_hashes_caps.lock().unwrap().insert(hash_to_bigint, file_length);
                                 
                                 },
                             Err(e) => println!("File {:?} {:?}", path, e.kind()),
@@ -224,12 +224,14 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> u64 {
                 }
             });
         });
+
         println!("\n");
+
         for (i, k) in &*list_hashes.clone().lock().unwrap() {
             logger!("hash {:?} -> file {:?}", i, k);
         }
 
-        let mut hashmap_group = sort_and_group_duplicates(list_hashes.lock().unwrap().to_vec());
+        let mut hashmap_group = sort_and_group_duplicates(list_hashes.lock().unwrap().as_slice());
        
         print_duplicates(&mut hashmap_group, &list_hashes_caps)
     }
