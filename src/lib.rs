@@ -1,8 +1,9 @@
 //! This library crate is only for internal use. Do not use it in your own projects independently.
 
 // Copyright (c) 2024 Venkatesh Omkaram
-mod stupid_traits;
-use stupid_traits::*;
+mod traits;
+
+use traits::*;
 use hashbrown::HashMap;
 use human_bytes::human_bytes;
 use indicatif::ProgressBar;
@@ -11,13 +12,7 @@ use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
-    fmt::Debug,
-    fs,
-    hash::Hash,
-    io::{stdin, stdout, Write},
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-    time::SystemTime,
+    fmt::Debug, fs, hash::Hash, io::{stdin, stdout, Write}, path::{Path, PathBuf}, rc::Rc, sync::{Arc, Mutex}, time::SystemTime
 };
 
 #[cfg(target_os = "linux")]
@@ -91,27 +86,26 @@ struct Grouper {
     path_buf: PathBuf,
 }
 
-//Common code for recurse_dirs and walk_dirs
-fn walk_and_recurse_dirs_inner<T, K, U>(path: T)
+// Common code for recurse_dirs and walk_dirs
+fn walk_and_recurse_dirs_inner<T>(path: T)
 where
-    T: CommonDirWalker<K, U>,
-    K: MetaDataPathBufCommon,
-    U: MetaDataPathBufCommon,
+    T: DirectoryMetaData,
 {
-    let metadata = path.metadata_custom();
-    let entry = path.unwrap_custom();
+    let metadata = path.get_metadata();
+    let entry = Rc::new(path.get_path());
 
-    if metadata.result_unwrap().is_dir() {
-        let base_path = entry.get_path();
+    if metadata.is_dir() {
+        let base_path = entry.to_path_buf();
+        
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
-        FILE_LIST.lock().unwrap().push(entry.get_path());
+        FILE_LIST.lock().unwrap().push(entry.to_path_buf());
         if cfg!(unix) {
             #[cfg(target_os = "linux")]
             {
                 match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
                     Some(o) => {
-                        *o += match entry.get_path().metadata() {
+                        *o += match entry.metadata() {
                             Ok(p) => p.size(),
                             Err(_) => 0,
                         }
@@ -150,7 +144,6 @@ pub fn recurse_dirs(item: &PathBuf) {
     }
 }
 
-/// Used to recursively capture path entries and capture them separately in two separate Vecs. 
 /// DIR_LIST is used to hold Directory paths. 
 /// FILE_LIST is used to hold File paths. 
 /// But uses WalkDir and Rayon to make it fast.
