@@ -62,6 +62,7 @@ struct Args {
 }
 
 fn main() {
+    let args = Args::parse();
     println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
     println!("\n{}\n", 
     "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
@@ -84,8 +85,6 @@ fn main() {
             ]),
     );
     pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
-
-    let args = Args::parse();
 
     unsafe { VERBOSE = args.verbose; }
 
