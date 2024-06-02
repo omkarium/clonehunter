@@ -87,7 +87,7 @@ struct Grouper {
 }
 
 // Common code for recurse_dirs and walk_dirs
-fn walk_and_recurse_dirs_inner<T>(path: T)
+fn walk_and_recurse_dirs_inner<T>(path: T, ext: Option<&str>)
 where
     T: DirectoryMetaData,
 {
@@ -99,32 +99,67 @@ where
         
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
-        FILE_LIST.lock().unwrap().push(entry.to_path_buf());
-        if cfg!(unix) {
-            #[cfg(target_os = "linux")]
-            {
-                match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                    Some(o) => {
-                        *o += match entry.metadata() {
-                            Ok(p) => p.size(),
-                            Err(_) => 0,
+        if let Some(x) = entry.extension() {
+            if let Some(ext) = ext {
+                if x.eq(ext) {
+                    FILE_LIST.lock().unwrap().push(entry.to_path_buf());
+                    if cfg!(unix) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                                Some(o) => {
+                                    *o += match entry.metadata() {
+                                        Ok(p) => p.size(),
+                                        Err(_) => 0,
+                                    }
+                                }
+                                None => {}
+                            }
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                                Some(o) => {
+                                    *o += match entry.get_path().metadata() {
+                                        Ok(p) => p.file_size(),
+                                        Err(_) => 0,
+                                    }
+                                }
+                                None => {}
+                            }
                         }
                     }
-                    None => {}
                 }
-            }
-        } else if cfg!(windows) {
-            #[cfg(target_os = "windows")]
-            {
-                match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                    Some(o) => {
-                        *o += match entry.get_path().metadata() {
-                            Ok(p) => p.file_size(),
-                            Err(_) => 0,
+            } else {
+                    FILE_LIST.lock().unwrap().push(entry.to_path_buf());
+                    if cfg!(unix) {
+                        #[cfg(target_os = "linux")]
+                        {
+                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                                Some(o) => {
+                                    *o += match entry.metadata() {
+                                        Ok(p) => p.size(),
+                                        Err(_) => 0,
+                                    }
+                                }
+                                None => {}
+                            }
+                        }
+                    } else if cfg!(windows) {
+                        #[cfg(target_os = "windows")]
+                        {
+                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                                Some(o) => {
+                                    *o += match entry.get_path().metadata() {
+                                        Ok(p) => p.file_size(),
+                                        Err(_) => 0,
+                                    }
+                                }
+                                None => {}
+                            }
                         }
                     }
-                    None => {}
-                }
             }
         }
     }
@@ -133,12 +168,12 @@ where
 /// Used to recursively capture path entries and capture them separately in two separate Vecs. 
 /// DIR_LIST is used to hold Directory paths. 
 /// FILE_LIST is used to hold File. 
-pub fn recurse_dirs(item: &PathBuf) {
+pub fn recurse_dirs(item: &PathBuf, ext: Option<&str>) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
             for path in paths {
-                walk_and_recurse_dirs_inner(&path);
-                recurse_dirs(&path.unwrap().path())
+                walk_and_recurse_dirs_inner(&path, ext);
+                recurse_dirs(&path.unwrap().path(), ext)
             }
         }
     }
@@ -147,7 +182,7 @@ pub fn recurse_dirs(item: &PathBuf) {
 /// DIR_LIST is used to hold Directory paths. 
 /// FILE_LIST is used to hold File paths. 
 /// But uses WalkDir and Rayon to make it fast.
-pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8) {
+pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str>) {
     if item.is_dir() {
         let _: Vec<_> = WalkDir::new(item)
             .skip_hidden(false)
@@ -156,7 +191,7 @@ pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8) {
             .into_iter()
             .par_bridge()
             .filter_map(|dir_entry| {
-                walk_and_recurse_dirs_inner(&dir_entry);
+                walk_and_recurse_dirs_inner(&dir_entry, ext);
                 Some(())
             })
             .collect();

@@ -17,7 +17,7 @@ To install the program permanently on your system do `cargo install clonehunter`
 
 ## Example usage:
  ```
-clonehunter your-folder-path -t 12 -c -v -m 50
+clonehunter your-folder-path -t 12 -c -v -m 50 -e pdf
  ```
 `-c` stands for checksum. If you pass this option, clonehunter will find the file clones (aka duplicate files or identical files) based on a partial checksum by reading bytes from the beginning and the ending of the file content.
 If you do not pass -c option, then clonehunter will scan for clones based on a combination of file name, modified time and file size hash combined.
@@ -26,7 +26,9 @@ If you do not pass -c option, then clonehunter will scan for clones based on a c
 
 `-v` stands for verbose. It prints the hashes of each and every file for you to compare and manually figure out clones.
 
-`-t` stands for threads. Choose the number of threads to allocate the program to hunt. In the above example I am using 12 threads.
+`-t` stands for threads. Choose the number of threads to allocate the program to hunt. In the above example, I am using 12 threads.
+
+`-e` stands for extension and this feature enables you to target specific file types aka file extensions. In the above example, I am targeting pdf. If you do not want to target any specific file types, then do not use the option.
 
 ## How it works?
 There are two modes the program looks for duplicate files.

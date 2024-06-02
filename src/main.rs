@@ -58,7 +58,10 @@ struct Args {
     threads: u8,
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
-    verbose: bool    
+    verbose: bool,
+    /// Find clones for a specific file type
+    #[clap(short, long)]
+    extension: Option<String>    
 }
 
 fn main() {
@@ -92,9 +95,9 @@ fn main() {
 
     if args.no_max_depth {
         DIR_LIST.lock().unwrap().push(path.clone());
-        recurse_dirs(&path);
+        recurse_dirs(&path, args.extension.as_deref());
     } else {
-        walk_dirs(&path, args.max_depth, args.threads);
+        walk_dirs(&path, args.max_depth, args.threads, args.extension.as_deref());
     }
 
     pb.finish_with_message("Scan completed");
@@ -111,6 +114,7 @@ fn main() {
     println!("Total threads about to be used                : {}", args.threads);
     println!("Perform a Checksum?                           : {}", args.checksum);
     println!("Verbose printing?                             : {}", args.verbose);
+    println!("Target file type / Extension                  : {}", args.extension.unwrap_or("NA".to_string()));
     println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
