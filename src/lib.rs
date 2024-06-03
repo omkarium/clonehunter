@@ -139,7 +139,7 @@ where
                         {
                             match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
                                 Some(o) => {
-                                    *o += match entry.get_path().metadata() {
+                                    *o += match entry.metadata() {
                                         Ok(p) => p.file_size(),
                                         Err(_) => 0,
                                     }
@@ -169,7 +169,7 @@ where
                     {
                         match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
                             Some(o) => {
-                                *o += match entry.get_path().metadata() {
+                                *o += match entry.metadata() {
                                     Ok(p) => p.file_size(),
                                     Err(_) => 0,
                                 }
