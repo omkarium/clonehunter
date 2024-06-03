@@ -62,6 +62,9 @@ The program scans and outputs identical files based on best effort basis. This m
 
 Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission restrictions.
 
+## Regarding files with 0 bytes size
+If you are running clonehunter on bunch of different files or file types, let's say some mp4, pdf, txt etc but they all have file sizes of 0 bytes, and if you used the -c checksum option, you will observe all of the 0 size files grouped together as duplicates in the final output on the screen.
+
 [//]: # (badges)
 
 [crate-image]: https://img.shields.io/crates/v/clonehunter.svg
