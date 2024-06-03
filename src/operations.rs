@@ -4,7 +4,7 @@ use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
 use std::sync::Mutex;
-use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData};
+use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData, SortOrder};
 use hashbrown::HashMap;
 use gxhash::GxHasher;
 use std::ffi::OsString;
@@ -35,7 +35,7 @@ use std::os::windows::fs::MetadataExt;
 /// truly duplicate. No checksum is easy and fast, but using the checksum feature is reliable. Also, the checksum feature is not 
 /// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand 
 /// and last few thousand bytes. This makes it fast and not resource hungry.
-pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> (u64,u64) {
+pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrder) -> (u64,u64) {
 
     let list_hashes: Arc<Mutex<Vec<(BigUint, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
@@ -157,6 +157,7 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> (u64,u64) {
         print_duplicates(
             &mut hashmap_for_duplicates_meta,
             &hashmap_for_duplicates_meta_caps,
+            sort_order
         )
 
     } else {
@@ -233,6 +234,6 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8) -> (u64,u64) {
 
         let mut hashmap_group = sort_and_group_duplicates(list_hashes.lock().unwrap().as_slice());
        
-        print_duplicates(&mut hashmap_group, &list_hashes_caps)
+        print_duplicates(&mut hashmap_group, &list_hashes_caps, sort_order)
     }
 }

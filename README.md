@@ -30,6 +30,11 @@ If you do not pass -c option, then clonehunter will scan for clones based on a c
 
 `-e` stands for extension and this feature enables you to target specific file types aka file extensions. In the above example, I am targeting `pdf`. If you do not want to target any specific file types, then do not use the option. You can also pass something like `pdf,txt,mp4`. This will target all the three file types.
 
+`-s` stands for sort-by and this feature helps to sort the output to be printed on the screen based on 3 types. 
+The three types or `file-type`, `file-size`, and `both`. When you pass the value as `both` the output will be sorted based on `file-size` first and `file-type` next.
+
+`-o` stands for order-by and this feature helps to order the sorted output which was achieved by the `-s` option. This option only applied for `-s both` and `-s file-size`. It does not matter what the order is when your already sorted using the file-type alone.
+
 ## How it works?
 There are two modes the program looks for duplicate files.
 1. Without checksum calculation

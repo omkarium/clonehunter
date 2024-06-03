@@ -31,7 +31,7 @@
 //! 
 //! Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission.
 mod operations;
-use common::{confirmation, recurse_dirs, walk_dirs, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
+use common::{confirmation, recurse_dirs, walk_dirs, OrderBy, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::operations::run;
 use clap::Parser;
@@ -61,7 +61,13 @@ struct Args {
     verbose: bool,
     /// Find clones for a specific file type. Example -e pdf or -e pdf,txt,mp4
     #[clap(short, long)]
-    extension: Option<String>    
+    extension: Option<String>,
+    /// Sorts the output.
+    #[clap(short, long, value_enum, default_value_t = SortBy::FileType)]
+    sort_by: SortBy,
+    /// Prints the sorted output either in Ascending or Descending order
+    #[clap(short, long)]
+    order_by: Option<OrderBy>  
 }
 
 fn main() {
@@ -69,6 +75,38 @@ fn main() {
     println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
     println!("\n{}\n", 
     "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
+
+    match args.sort_by {
+        SortBy::FileType => {
+            if args.order_by.is_some() {
+                eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
+                std::process::exit(1);
+            }
+            println!("I will sort the final output by file type\n");
+        }
+        SortBy::FileSize => {
+            if let Some(order_by) = args.order_by {
+                match order_by {
+                    OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
+                    OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
+                }
+            } else {
+                eprintln!("Error: --order-by is required with --sort-by file-size\n");
+                std::process::exit(1);
+            }
+        }
+        SortBy::Both => {
+            if let Some(order_by) = args.order_by {
+                match order_by {
+                    OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
+                    OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
+                }
+            } else {
+                eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
+                std::process::exit(1);
+            }
+        },
+    }
 
     let pb = ProgressBar::new_spinner();
     pb.enable_steady_tick(Duration::from_millis(120));
@@ -118,11 +156,11 @@ fn main() {
     println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
     println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
-
     if confirmation() == "Y" {
         let a = FILE_LIST.lock().unwrap().to_vec();
         let start_time = Instant::now();
-        let dup_data = run(a, args.checksum, args.threads);
+        let sort_order = SortOrder(args.sort_by, args.order_by);
+        let dup_data = run(a, args.checksum, args.threads, sort_order);
         let elapsed = Some(start_time.elapsed());
 
         println!("\n============Results==============\n");

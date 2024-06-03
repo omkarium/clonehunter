@@ -12,14 +12,7 @@ use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
-    fmt::Debug,
-    fs,
-    hash::Hash,
-    io::{stdin, stdout, Write},
-    path::{Path, PathBuf},
-    rc::Rc,
-    sync::{Arc, Mutex},
-    time::SystemTime,
+    fmt::Debug, fs, hash::Hash, io::{stdin, stdout, Write}, path::{Path, PathBuf}, rc::Rc, sync::{Arc, Mutex}, time::SystemTime
 };
 use traits::*;
 
@@ -92,6 +85,23 @@ struct Grouper {
     hash_to_bigint: BigUint,
     path_buf: PathBuf,
 }
+
+/// Order by
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum SortBy {
+    FileType,
+    FileSize,
+    Both
+}
+
+/// Order
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
+pub enum OrderBy {
+    Asc,
+    Desc
+}
+
+pub struct SortOrder(pub SortBy, pub Option<OrderBy>);
 
 // Common code for recurse_dirs and walk_dirs
 fn walk_and_recurse_dirs_inner<T>(path: T, ext: Option<&str>)
@@ -212,6 +222,7 @@ pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str
 pub fn print_duplicates<T, U, K>(
     arc_vec_paths: &mut Arc<Mutex<HashMap<K, T>>>,
     arc_capacities: &Arc<Mutex<HashMap<K, U>>>,
+    sort_order: SortOrder
 ) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone + Paths,
@@ -233,13 +244,64 @@ where
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
     let mut filtered_duplicates_result: Vec<(&K, &mut T)> = filtered_duplicates_result.collect();
 
-    filtered_duplicates_result.sort_by(|a, b| {
-        a.1.get_path()
-            .extension()
-            .unwrap_or(&OsStr::default())
-            .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
-    });
-    
+    let sort_by = sort_order.0;
+    let order_by = sort_order.1;
+
+    match sort_by {
+        SortBy::FileType => {
+            // Sorts the duplicates based on the file extension
+            filtered_duplicates_result.sort_by(|a, b| {
+                a.1.get_path()
+                    .extension()
+                    .unwrap_or(&OsStr::default())
+                    .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
+            });
+        },
+        SortBy::FileSize => {
+            // Sorts the duplicates based on the file sizes
+            filtered_duplicates_result.sort_by(|a, b| {
+                let x = arc_capacities.get(a.0).unwrap();
+                let x2 = arc_capacities.get(b.0).unwrap();
+                x.cast().total_cmp(&x2.cast())
+            });
+        }
+        SortBy::Both => {
+            // Sorts the duplicates based on the file sizes
+            filtered_duplicates_result.sort_by(|a, b| {
+                let x = arc_capacities.get(a.0).unwrap();
+                let x2 = arc_capacities.get(b.0).unwrap();
+                x.cast().total_cmp(&x2.cast())
+            });
+
+            // Sorts the duplicates based on the file extension
+            filtered_duplicates_result.sort_by(|a, b| {
+            a.1.get_path()
+                .extension()
+                .unwrap_or(&OsStr::default())
+                .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
+            });
+
+        },
+    };
+
+    match sort_by {
+        SortBy::FileType => {},
+        SortBy::FileSize | SortBy::Both => {
+            if let Some(o) = order_by {
+                match o {
+                    OrderBy::Asc => {
+                        
+                    },
+                    OrderBy::Desc => {
+                        filtered_duplicates_result.reverse()
+                    },
+                }
+            }
+        }
+    };
+
+
+    // Prints the duplicates
     for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
         let x = arc_capacities.get(i).unwrap();
         let y = human_bytes(x.cast());
