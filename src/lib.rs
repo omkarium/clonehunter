@@ -211,15 +211,15 @@ pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str
 pub fn print_duplicates<T, U, K>(
     arc_vec_paths: &mut Arc<Mutex<HashMap<K, T>>>,
     arc_capacities: &Arc<Mutex<HashMap<K, U>>>,
-) -> u64
+) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone,
     <T as IntoIterator>::Item: Debug,
     U: AsF64,
     K: Eq + Hash,
 {
-    let mut duplicates_count = 0;
-
+    let mut duplicates_count: u64 = 0;
+    let mut duplicates_total_size: u64 = 0;
     let mut arc_vec_paths = arc_vec_paths.lock().unwrap();
 
     let arc_capacities = arc_capacities.lock().unwrap();
@@ -234,13 +234,14 @@ where
     for (u, (i, k)) in filtered_duplicates_result.enumerate() {
         let x = arc_capacities.get(i).unwrap();
         let y = human_bytes(x.cast());
+        duplicates_total_size += x.cast() as u64;
         println!("\nDuplicate {:?}, {} ({} bytes) each", u, y, x.cast());
         for i in k.clone().into_iter() {
             println!("      {:?}", i);
         }
     }
 
-    duplicates_count
+    (duplicates_count,duplicates_total_size)
 }
 
 /// This function helps in sorting the vec of Hash digest and filePath.

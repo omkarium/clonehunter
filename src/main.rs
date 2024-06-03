@@ -122,13 +122,14 @@ fn main() {
     if confirmation() == "Y" {
         let a = FILE_LIST.lock().unwrap().to_vec();
         let start_time = Instant::now();
-        let dup_count = run(a, args.checksum, args.threads);
+        let dup_data = run(a, args.checksum, args.threads);
         let elapsed = Some(start_time.elapsed());
 
         println!("\n============Results==============\n");
         
         println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
-        println!("Total duplicate records found: {}", dup_count);
+        println!("Total duplicate records found: {}", dup_data.0);
+        println!("Total duplicate records file size on the disk: {}", human_bytes(dup_data.1 as f64));
         println!("\nWe are done. Have a nice day 😎");
 
         println!("\n=================================\n");
