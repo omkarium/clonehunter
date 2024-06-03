@@ -3,10 +3,10 @@
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
+use fxhash::FxHasher64;
 use std::sync::Mutex;
 use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData, SortOrder};
 use hashbrown::HashMap;
-use gxhash::GxHasher;
 use std::ffi::OsString;
 use std::{
     fmt::Write,
@@ -16,6 +16,8 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
+//use gxhash::GxHasher;
+
 
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::MetadataExt;
@@ -110,7 +112,7 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
                                     file_size,
                                 };
         
-                                let mut file_metadata_hasher = GxHasher::default();
+                                let mut file_metadata_hasher = FxHasher64::default();
                                 duplicates_by_metadata.hash(&mut file_metadata_hasher);
         
                                 let hash_u64: u64 = file_metadata_hasher.finish();

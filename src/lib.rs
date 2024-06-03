@@ -86,7 +86,7 @@ struct Grouper {
     path_buf: PathBuf,
 }
 
-/// Order by
+/// Sort by
 #[derive(clap::ValueEnum, Clone, Debug)]
 pub enum SortBy {
     FileType,
@@ -100,7 +100,7 @@ pub enum OrderBy {
     Asc,
     Desc
 }
-
+// Sorts and Orders
 pub struct SortOrder(pub SortBy, pub Option<OrderBy>);
 
 // Common code for recurse_dirs and walk_dirs
