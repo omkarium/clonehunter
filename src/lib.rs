@@ -3,6 +3,7 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 mod traits;
 
+use clap::builder::OsStr;
 use hashbrown::HashMap;
 use human_bytes::human_bytes;
 use indicatif::ProgressBar;
@@ -213,7 +214,7 @@ pub fn print_duplicates<T, U, K>(
     arc_capacities: &Arc<Mutex<HashMap<K, U>>>,
 ) -> (u64, u64)
 where
-    T: IntoIterator + ExactSize + Clone,
+    T: IntoIterator + ExactSize + Clone + Paths,
     <T as IntoIterator>::Item: Debug,
     U: AsF64,
     K: Eq + Hash,
@@ -230,8 +231,16 @@ where
         .for_each(|x| duplicates_count += x.1.len() as u64);
 
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
+    let mut filtered_duplicates_result: Vec<(&K, &mut T)> = filtered_duplicates_result.collect();
 
-    for (u, (i, k)) in filtered_duplicates_result.enumerate() {
+    filtered_duplicates_result.sort_by(|a, b| {
+        a.1.get_path()
+            .extension()
+            .unwrap_or(&OsStr::default())
+            .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
+    });
+    
+    for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
         let x = arc_capacities.get(i).unwrap();
         let y = human_bytes(x.cast());
         duplicates_total_size += x.cast() as u64;
@@ -241,7 +250,7 @@ where
         }
     }
 
-    (duplicates_count,duplicates_total_size)
+    (duplicates_count, duplicates_total_size)
 }
 
 /// This function helps in sorting the vec of Hash digest and filePath.

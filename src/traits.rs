@@ -59,3 +59,19 @@ impl ExactSize for Vec<OsString> {
         self.len()
     }
 }
+
+pub trait Paths {
+    fn get_path(&self) -> PathBuf;
+}
+
+impl Paths for Vec<OsString> {
+    fn get_path(&self) -> PathBuf {
+        self.get(0).unwrap().into()
+    }
+}
+
+impl Paths for Vec<PathBuf> {
+    fn get_path(&self) -> PathBuf {
+        self.get(0).unwrap().to_path_buf()
+    }
+}
