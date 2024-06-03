@@ -59,7 +59,7 @@ struct Args {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     verbose: bool,
-    /// Find clones for a specific file type
+    /// Find clones for a specific file type. Example -e pdf or -e pdf,txt,mp4
     #[clap(short, long)]
     extension: Option<String>    
 }

@@ -28,7 +28,7 @@ If you do not pass -c option, then clonehunter will scan for clones based on a c
 
 `-t` stands for threads. Choose the number of threads to allocate the program to hunt. In the above example, I am using 12 threads.
 
-`-e` stands for extension and this feature enables you to target specific file types aka file extensions. In the above example, I am targeting pdf. If you do not want to target any specific file types, then do not use the option.
+`-e` stands for extension and this feature enables you to target specific file types aka file extensions. In the above example, I am targeting `pdf`. If you do not want to target any specific file types, then do not use the option. You can also pass something like `pdf,txt,mp4`. This will target all the three file types.
 
 ## How it works?
 There are two modes the program looks for duplicate files.

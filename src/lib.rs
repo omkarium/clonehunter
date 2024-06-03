@@ -3,7 +3,6 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 mod traits;
 
-use traits::*;
 use hashbrown::HashMap;
 use human_bytes::human_bytes;
 use indicatif::ProgressBar;
@@ -12,8 +11,16 @@ use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
-    fmt::Debug, fs, hash::Hash, io::{stdin, stdout, Write}, path::{Path, PathBuf}, rc::Rc, sync::{Arc, Mutex}, time::SystemTime
+    fmt::Debug,
+    fs,
+    hash::Hash,
+    io::{stdin, stdout, Write},
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::SystemTime,
 };
+use traits::*;
 
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::MetadataExt;
@@ -31,7 +38,6 @@ lazy_static! {
 }
 
 pub static mut VERBOSE: bool = false;
-
 
 /// This function can be used for all sorts of confirmation input from the user
 pub fn confirmation() -> String {
@@ -65,7 +71,7 @@ macro_rules! logger {
     ($value: literal, $item: expr, $item2: expr) => {
         use common::VERBOSE;
 
-        if unsafe {VERBOSE} {
+        if unsafe { VERBOSE } {
             println!($value, $item, $item2);
         }
     };
@@ -96,12 +102,13 @@ where
 
     if metadata.is_dir() {
         let base_path = entry.to_path_buf();
-        
+
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
         if let Some(x) = entry.extension() {
             if let Some(ext) = ext {
-                if x.eq(ext) {
+                let mut vec_ext = ext.split(",");
+                if vec_ext.any(|y| x.eq(y)) {
                     FILE_LIST.lock().unwrap().push(entry.to_path_buf());
                     if cfg!(unix) {
                         #[cfg(target_os = "linux")]
@@ -132,42 +139,42 @@ where
                     }
                 }
             } else {
-                    FILE_LIST.lock().unwrap().push(entry.to_path_buf());
-                    if cfg!(unix) {
-                        #[cfg(target_os = "linux")]
-                        {
-                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                                Some(o) => {
-                                    *o += match entry.metadata() {
-                                        Ok(p) => p.size(),
-                                        Err(_) => 0,
-                                    }
+                FILE_LIST.lock().unwrap().push(entry.to_path_buf());
+                if cfg!(unix) {
+                    #[cfg(target_os = "linux")]
+                    {
+                        match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                            Some(o) => {
+                                *o += match entry.metadata() {
+                                    Ok(p) => p.size(),
+                                    Err(_) => 0,
                                 }
-                                None => {}
                             }
-                        }
-                    } else if cfg!(windows) {
-                        #[cfg(target_os = "windows")]
-                        {
-                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                                Some(o) => {
-                                    *o += match entry.get_path().metadata() {
-                                        Ok(p) => p.file_size(),
-                                        Err(_) => 0,
-                                    }
-                                }
-                                None => {}
-                            }
+                            None => {}
                         }
                     }
+                } else if cfg!(windows) {
+                    #[cfg(target_os = "windows")]
+                    {
+                        match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                            Some(o) => {
+                                *o += match entry.get_path().metadata() {
+                                    Ok(p) => p.file_size(),
+                                    Err(_) => 0,
+                                }
+                            }
+                            None => {}
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/// Used to recursively capture path entries and capture them separately in two separate Vecs. 
-/// DIR_LIST is used to hold Directory paths. 
-/// FILE_LIST is used to hold File. 
+/// Used to recursively capture path entries and capture them separately in two separate Vecs.
+/// DIR_LIST is used to hold Directory paths.
+/// FILE_LIST is used to hold File.
 pub fn recurse_dirs(item: &PathBuf, ext: Option<&str>) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
@@ -179,8 +186,8 @@ pub fn recurse_dirs(item: &PathBuf, ext: Option<&str>) {
     }
 }
 
-/// DIR_LIST is used to hold Directory paths. 
-/// FILE_LIST is used to hold File paths. 
+/// DIR_LIST is used to hold Directory paths.
+/// FILE_LIST is used to hold File paths.
 /// But uses WalkDir and Rayon to make it fast.
 pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str>) {
     if item.is_dir() {
@@ -214,6 +221,7 @@ where
     let mut duplicates_count = 0;
 
     let mut arc_vec_paths = arc_vec_paths.lock().unwrap();
+
     let arc_capacities = arc_capacities.lock().unwrap();
 
     arc_vec_paths
@@ -240,14 +248,12 @@ where
 pub fn sort_and_group_duplicates(
     list_hashes: &[(BigUint, &Path)],
 ) -> Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> {
-
     let num_hashes_vec = Arc::new(Mutex::new(Vec::new()));
     let bar = ProgressBar::new(num_hashes_vec.lock().unwrap().len() as u64);
-    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> = Arc::new(Mutex::new(HashMap::new()));
-
+    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     for (i, k) in list_hashes.into_iter() {
-
         num_hashes_vec.lock().unwrap().push(Grouper {
             hash_to_bigint: i.to_owned(),
             path_buf: k.to_owned().into(),
@@ -283,4 +289,3 @@ pub fn sort_and_group_duplicates(
 
     hashmap_accumulator
 }
-
