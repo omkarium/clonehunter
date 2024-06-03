@@ -12,7 +12,7 @@
 //! 
 //! # Example usage:
 //!  ```
-//! clonehunter your-folder-path -t 12 -c -v -m 50
+//! clonehunter your-folder-path -t 12 -c -v -m 50 -e pdf -s both -o asc
 //! 
 //!  ```
 //! `-c` stands for checksum. If you pass this option, clonehunter will find the file clones (aka duplicate files or identical files) 
@@ -25,11 +25,23 @@
 //! 
 //! `-t` stands for threads. Choose the number of threads to allocate the program to hunt. In the above example I am using 12 threads.
 //! 
+//! `-e` stands for extension and this feature enables you to target specific file types aka file extensions. In the above example, I am targeting `pdf`. If you do not want to target any specific file types, then do not use the option. You can also pass something like `pdf,txt,mp4`. This will target all the three file types.
+//!
+//! `-s` stands for sort-by and this feature helps to sort the output to be printed on the screen based on 3 types. 
+//!  The three types are `file-type`, `file-size`, and `both`. When you pass the value as `both` the output will be sorted based on `file-size` first and `file-type` next.
+//! 
+//! `-o` stands for order-by and this feature helps to order the sorted output which was achieved by the `-s` option. This option only applies for `-s both` or `-s file-size`. It does not matter what the order is when your already sorted using the file-type alone.
+//! 
 //! ## Some considerations
 //! 
 //! The program scans and outputs identical files based on best effort basis. This means that not all files it reports on can be deemed as 'Absolutely identical'. So, the key term here is "Possibly identical". This tool can be used when you want to do a quick analysis to see which files are POSSIBLY identical. This tool must not be used in critical places and business solutions, and must not be considered as the source of truth to delete any of those found identical files.
 //! 
 //! Also, using this tool will not destroy any files on your machine. There are no delete or write operations performed in the code. If you found any such strangeness, please raise an Issue. At most, the tool reports incorrect identical files or skips some of the files which are not accessible due to file permission.
+//! 
+//! ## Regarding files with 0 bytes size
+//! 
+//! If you are running clonehunter on bunch of different files or file types, let's say some mp4, pdf, txt etc but they all have file sizes of 0 bytes, and if you used the -c checksum option, you will observe all of the 0 size files grouped together as duplicates in the final output on the screen.
+
 mod operations;
 use common::{confirmation, recurse_dirs, walk_dirs, OrderBy, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -42,7 +54,7 @@ use human_bytes::human_bytes;
 #[derive(Parser)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
 struct Args {
-    /// Pass the Source Directory (This is the directory under which will be looking for the identical files <Aka clones>)
+    /// Pass the Source Directory (This is the directory under which will be looking for the identical files (aka 'Clones')
     source_dir: String,
     /// Pass the Maximum Depth of directories to scan
     #[clap(short, long, default_value_t = 10)]
