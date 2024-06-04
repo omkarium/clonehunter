@@ -13,9 +13,8 @@ keywords = ["duplicate", "dupe", "finder"]
 categories = ["filesystem", "command-line-utilities"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[package.metadata.docs.rs]
-all-features = true
-
+#[package.metadata.docs.rs]
+#all-features = true
 #rustc-args = ["-C target-feature=+aes"]
 
 [[bin]]
@@ -24,7 +23,7 @@ path = "src/main.rs"
 
 [lib]
 name = "common"
-path = "src/lib.rs"
+path = "src/common/mod.rs"
 
 [dependencies]
 clap = { version = "4.4.11", features = ["derive"] }

@@ -1,13 +1,13 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
+use common::{logger, core::{print_duplicates, sort_and_group_duplicates, FileMetaData, SortOrder}};
+use fxhash::FxHasher64;
+use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
-use fxhash::FxHasher64;
-use std::sync::Mutex;
-use common::{logger, print_duplicates, sort_and_group_duplicates, FileMetaData, SortOrder};
-use hashbrown::HashMap;
 use std::ffi::OsString;
+use std::sync::Mutex;
 use std::{
     fmt::Write,
     fs::File,
@@ -18,7 +18,6 @@ use std::{
 };
 //use gxhash::GxHasher;
 
-
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::MetadataExt;
 
@@ -26,19 +25,18 @@ use std::os::unix::fs::MetadataExt;
 use std::os::windows::fs::MetadataExt;
 
 /// The working of this function is very straightforward. It takes a List of File paths from the main function
-/// Instantiates a Progress bar, creates a ThreadPool and check if checksum is true or false. 
+/// Instantiates a Progress bar, creates a ThreadPool and check if checksum is true or false.
 /// If the checksum is false, it means we won't need to do a checksum to hunt for duplicate files. Based on the file_name,
 /// modified_date and file_size a Hash is generated and this hash and its respective file_path will be stored in a HashMap.
 /// Finally, we will group file paths in the HashMap using the hash digest and extract them to a separate list.
 /// That list is finally sent to print_duplicates function to filter duplicate files and print them to the screen
-/// 
-/// 
-/// The only difference between no checksum and checksum is, in checksum, we will do some additional steps to ensure if the files are 
-/// truly duplicate. No checksum is easy and fast, but using the checksum feature is reliable. Also, the checksum feature is not 
-/// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand 
+///
+///
+/// The only difference between no checksum and checksum is, in checksum, we will do some additional steps to ensure if the files are
+/// truly duplicate. No checksum is easy and fast, but using the checksum feature is reliable. Also, the checksum feature is not
+/// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand
 /// and last few thousand bytes. This makes it fast and not resource hungry.
-pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrder) -> (u64,u64) {
-
+pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrder) -> (u64, u64) {
     let list_hashes: Arc<Mutex<Vec<(BigUint, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
 
@@ -74,19 +72,18 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
 
                     if let Some(file_name) = path.as_path().file_name() {
                         if let Some(file_name) = file_name.to_str() {
-                            let modified_date = 
-                                if let Ok(modified_date) = path.metadata() {
-                                    if let Ok(system_time) = modified_date.modified() {
-                                        system_time
-                                    } else {
-                                        break;
-                                    }
+                            let modified_date = if let Ok(modified_date) = path.metadata() {
+                                if let Ok(system_time) = modified_date.modified() {
+                                    system_time
                                 } else {
                                     break;
-                                };
-    
+                                }
+                            } else {
+                                break;
+                            };
+
                             let mut file_size = 0;
-    
+
                             if cfg!(unix) {
                                 #[cfg(target_os = "linux")]
                                 {
@@ -96,33 +93,36 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
                                 #[cfg(target_os = "windows")]
                                 {
                                     file_size = path.metadata().unwrap().file_size();
-                                }                        
+                                }
                             };
-    
+
                             let hashmap_for_duplicates_meta = hashmap_for_duplicates_meta.clone();
-                            let hashmap_for_duplicates_meta_caps = hashmap_for_duplicates_meta_caps.clone();
-    
+                            let hashmap_for_duplicates_meta_caps =
+                                hashmap_for_duplicates_meta_caps.clone();
+
                             s.spawn(move |_| {
                                 let pb = pb.clone();
-                                pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
+                                pb.lock()
+                                    .unwrap()
+                                    .set_position(*pb_increment.lock().unwrap());
                                 *pb_increment.lock().unwrap() += 1;
                                 let duplicates_by_metadata = FileMetaData {
                                     file_name,
                                     modified_date,
                                     file_size,
                                 };
-        
+
                                 let mut file_metadata_hasher = FxHasher64::default();
                                 duplicates_by_metadata.hash(&mut file_metadata_hasher);
-        
+
                                 let hash_u64: u64 = file_metadata_hasher.finish();
                                 hashmap_for_duplicates_meta_caps
                                     .lock()
                                     .unwrap()
                                     .insert(hash_u64, file_size);
-        
+
                                 logger!("hash {:?} -> file {:?}", hash_u64, path);
-        
+
                                 if hashmap_for_duplicates_meta
                                     .lock()
                                     .unwrap()
@@ -134,9 +134,9 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
                                         .get(&hash_u64)
                                         .unwrap()
                                         .to_owned();
-                                    
+
                                     path_vec.push(path.to_owned().into_os_string());
-                                    
+
                                     hashmap_for_duplicates_meta
                                         .lock()
                                         .unwrap()
@@ -159,9 +159,8 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
         print_duplicates(
             &mut hashmap_for_duplicates_meta,
             &hashmap_for_duplicates_meta_caps,
-            sort_order
+            sort_order,
         )
-
     } else {
         pool.install(|| {
             rayon::scope(|s| {
@@ -175,30 +174,42 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
                     // Spawn the threads here
                     s.spawn(move |_| {
                         let pb = pb.clone();
-                        pb.lock().unwrap().set_position(*pb_increment.lock().unwrap());
+                        pb.lock()
+                            .unwrap()
+                            .set_position(*pb_increment.lock().unwrap());
 
                         match File::open(path) {
                             Ok(file) => {
                                 let mut reader = BufReader::new(file);
-    
+
                                 let file_length = path.metadata().unwrap().len();
-    
+
                                 let hash_combine = if file_length > 2048 {
                                     let mut buffer_front = vec![0; 1024];
                                     let _ = reader.read_exact(&mut buffer_front);
-    
+
                                     let _ = reader.seek_relative(-1024);
-    
+
                                     let mut buffer_back = vec![0; 1024];
                                     let _ = reader.read_exact(&mut buffer_back);
-    
-                                    compute([buffer_front, buffer_back, file_length.to_le_bytes().to_vec()].concat())
+
+                                    compute(
+                                        [
+                                            buffer_front,
+                                            buffer_back,
+                                            file_length.to_le_bytes().to_vec(),
+                                        ]
+                                        .concat(),
+                                    )
                                 } else {
                                     let mut buffer_full =
-                                        vec![0; <u64 as TryInto<usize>>::try_into(file_length).unwrap()];
-                                    
+                                        vec![
+                                            0;
+                                            <u64 as TryInto<usize>>::try_into(file_length).unwrap()
+                                        ];
+
                                     let _ = reader.read_exact(&mut buffer_full);
-                                  
+
                                     compute(buffer_full)
                                 };
 
@@ -209,17 +220,17 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
                                     .concat()
                                     .parse::<BigUint>()
                                     .unwrap();
-    
+
                                 list_hashes
                                     .lock()
                                     .unwrap()
                                     .push((hash_to_bigint.clone(), path.as_path()));
-    
-                                
-    
-                                list_hashes_caps.lock().unwrap().insert(hash_to_bigint, file_length);
-                                
-                                },
+
+                                list_hashes_caps
+                                    .lock()
+                                    .unwrap()
+                                    .insert(hash_to_bigint, file_length);
+                            }
                             Err(e) => println!("File {:?} {:?}", path, e.kind()),
                         }
                         *pb_increment.lock().unwrap() += 1;
@@ -235,7 +246,7 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
         }
 
         let mut hashmap_group = sort_and_group_duplicates(list_hashes.lock().unwrap().as_slice());
-       
+
         print_duplicates(&mut hashmap_group, &list_hashes_caps, sort_order)
     }
 }

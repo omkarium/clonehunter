@@ -1,7 +1,4 @@
-//! This library crate is only for internal use. Do not use it in your own projects independently.
-
 // Copyright (c) 2024 Venkatesh Omkaram
-mod traits;
 
 use clap::builder::OsStr;
 use hashbrown::HashMap;
@@ -12,15 +9,24 @@ use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
-    fmt::Debug, fs, hash::Hash, io::{stdin, stdout, Write}, path::{Path, PathBuf}, rc::Rc, sync::{Arc, Mutex}, time::SystemTime
+    fmt::Debug,
+    fs,
+    hash::Hash,
+    io::{stdin, stdout, Write},
+    path::{Path, PathBuf},
+    rc::Rc,
+    sync::{Arc, Mutex},
+    time::SystemTime,
 };
-use traits::*;
+use trait_defs::*;
 
 #[cfg(target_os = "linux")]
 use std::os::unix::fs::MetadataExt;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
+
+use crate::trait_defs;
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -63,7 +69,7 @@ pub fn confirmation() -> String {
 #[macro_export]
 macro_rules! logger {
     ($value: literal, $item: expr, $item2: expr) => {
-        use common::VERBOSE;
+        use common::core::VERBOSE;
 
         if unsafe { VERBOSE } {
             println!($value, $item, $item2);
@@ -91,14 +97,14 @@ struct Grouper {
 pub enum SortBy {
     FileType,
     FileSize,
-    Both
+    Both,
 }
 
 /// OrderBy User Option
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
 pub enum OrderBy {
     Asc,
-    Desc
+    Desc,
 }
 
 /// Struct which holds SortBy and OrderBy User Options
@@ -223,7 +229,7 @@ pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str
 pub fn print_duplicates<T, U, K>(
     arc_vec_paths: &mut Arc<Mutex<HashMap<K, T>>>,
     arc_capacities: &Arc<Mutex<HashMap<K, U>>>,
-    sort_order: SortOrder
+    sort_order: SortOrder,
 ) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone + Paths,
@@ -257,7 +263,7 @@ where
                     .unwrap_or(&OsStr::default())
                     .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
             });
-        },
+        }
         SortBy::FileSize => {
             // Sorts the duplicates based on the file sizes
             filtered_duplicates_result.sort_by(|a, b| {
@@ -276,31 +282,25 @@ where
 
             // Sorts the duplicates based on the file extension
             filtered_duplicates_result.sort_by(|a, b| {
-            a.1.get_path()
-                .extension()
-                .unwrap_or(&OsStr::default())
-                .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
+                a.1.get_path()
+                    .extension()
+                    .unwrap_or(&OsStr::default())
+                    .cmp(&b.1.get_path().extension().unwrap_or(&OsStr::default()))
             });
-
-        },
+        }
     };
 
     match sort_by {
-        SortBy::FileType => {},
+        SortBy::FileType => {}
         SortBy::FileSize | SortBy::Both => {
             if let Some(o) = order_by {
                 match o {
-                    OrderBy::Asc => {
-                        
-                    },
-                    OrderBy::Desc => {
-                        filtered_duplicates_result.reverse()
-                    },
+                    OrderBy::Asc => {}
+                    OrderBy::Desc => filtered_duplicates_result.reverse(),
                 }
             }
         }
     };
-
 
     // Prints the duplicates
     for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {

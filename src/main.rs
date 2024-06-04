@@ -43,7 +43,7 @@
 //! If you are running clonehunter on bunch of different files or file types, let's say some mp4, pdf, txt etc but they all have file sizes of 0 bytes, and if you used the -c checksum option, you will observe all of the 0 size files grouped together as duplicates in the final output on the screen.
 
 mod operations;
-use common::{confirmation, recurse_dirs, walk_dirs, OrderBy, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
+use common::core::{confirmation, recurse_dirs, walk_dirs, OrderBy, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::operations::run;
 use clap::Parser;

@@ -1,15 +1,17 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use std::{ffi::OsString, fs::{self, DirEntry}, path::PathBuf};
+use std::{
+    ffi::OsString,
+    fs::{self, DirEntry},
+    path::PathBuf,
+};
 
 pub(crate) trait DirectoryMetaData {
     fn get_metadata(&self) -> fs::Metadata;
     fn get_path(&self) -> PathBuf;
 }
 
-impl<'a> DirectoryMetaData
-    for &'a Result<jwalk::DirEntry<((), ())>, jwalk::Error>
-{
+impl<'a> DirectoryMetaData for &'a Result<jwalk::DirEntry<((), ())>, jwalk::Error> {
     fn get_metadata(&self) -> fs::Metadata {
         self.as_ref().unwrap().metadata().unwrap()
     }
@@ -19,9 +21,7 @@ impl<'a> DirectoryMetaData
     }
 }
 
-impl<'a> DirectoryMetaData
-    for &'a Result<DirEntry, std::io::Error>
-{
+impl<'a> DirectoryMetaData for &'a Result<DirEntry, std::io::Error> {
     fn get_metadata(&self) -> fs::Metadata {
         self.as_ref().unwrap().metadata().unwrap()
     }
@@ -30,7 +30,6 @@ impl<'a> DirectoryMetaData
         self.as_ref().unwrap().path()
     }
 }
-
 
 // A simple trait to cast implementors to f64. Pretty useful in Function which takes Generic arguments
 pub trait AsF64 {
