@@ -1,6 +1,6 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use common::{core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig, SortOrder}, logger};
+use common::{core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig}, logger};
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
