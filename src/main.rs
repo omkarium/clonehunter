@@ -83,34 +83,25 @@ pub struct HunterOptions {
     /// Sorts the output.
     #[clap(short, long, value_enum, default_value_t = SortBy::FileType)]
     sort_by: SortBy,
-    /// Prints the sorted output either in Ascending or Descending order
+    /// Prints the sorted output either in the Ascending or the Descending order
     #[clap(short, long)]
     order_by: Option<OrderBy>,
-    /// Write the output to a file using various styles
-    #[command(subcommand)]
-    output_style: Option<Output>,
+    /// Write the output to a file using various styles (requires `-f`)
+    #[clap(short = 'u', long, requires = "output_file")]
+    output_style: Option<OutputStyle>,
+    /// Write the output to a file (requires `-u`)
+    #[clap(short = 'f', long, requires = "output_style")]
+    output_file: Option<String>,
 }
 
-#[derive(clap::Subcommand, Debug, Clone)]
-#[command(disable_version_flag = true)]
-pub enum Output {
+#[derive(clap::ValueEnum, Clone, Debug)]
+pub enum OutputStyle {
     /// Use the default style of printing the output to a file
-    Default {
-        /// Write the output to a file
-        #[arg()]
-        output_file: String,
-    },
+    Default,
     /// Use the JSON style of printing the output to a file
-    JSON {
-        /// Write the output to a file
-        #[arg()]
-        output_file: String,
-    },
+    JSON,
 }
 
-#[derive(clap::Args, Debug, Clone)]
-#[command(disable_version_flag = true)]
-pub struct OutputOptions {}
 
 #[derive(clap::Subcommand, Debug)]
 #[command(disable_version_flag = true)]
@@ -269,10 +260,10 @@ fn main() {
                 let start_time = Instant::now();
                 let sort_order = SortOrder(args.sort_by, args.order_by);
 
-                let print_conf = if args.output_style.is_some() {
+                let print_conf = if args.output_style.is_some() && args.output_file.is_some() {
                     match args.output_style.unwrap() {
-                        Output::Default { output_file } | Output::JSON { output_file } => {
-                            let file = File::create(output_file).expect("Error: Failed to create the output file you passed via --out-path option\n");
+                        OutputStyle::Default | OutputStyle::JSON  => {
+                            let file = File::create(args.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --out-path option\n");
                             PrinterConfig {
                                 file: Some(file),
                                 sort_order,
