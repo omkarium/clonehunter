@@ -51,9 +51,15 @@ use std::{env, path::PathBuf, time::{Duration, Instant}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
-#[derive(Parser)]
-#[command(author="@github.com/omkarium", version, about, long_about = None)]
-struct Args {
+#[derive(clap::Args, Debug, Clone)]
+#[command(disable_version_flag = true)]
+pub struct Delete {
+
+}
+
+#[derive(clap::Args, Debug, Clone)]
+#[command(disable_version_flag = true)]
+pub struct HunterOptions {
     /// Pass the Source Directory (This is the directory under which will be looking for the identical files (aka 'Clones')
     source_dir: String,
     /// Pass the Maximum Depth of directories to scan
@@ -65,12 +71,6 @@ struct Args {
     /// Hunt for clones by performing partial file checksums.
     #[clap(short, long, default_value_t = false)]
     checksum: bool,
-    /// Threads to speed up the execution
-    #[clap(short, long, default_value_t = 8)]
-    threads: u8,
-    /// Print verbose output
-    #[clap(short, long, default_value_t = false)]
-    verbose: bool,
     /// Find clones for a specific file type. Example -e pdf or -e pdf,txt,mp4
     #[clap(short, long)]
     extension: Option<String>,
@@ -82,108 +82,141 @@ struct Args {
     order_by: Option<OrderBy>  
 }
 
+#[derive(clap::Subcommand, Debug)]
+#[command(disable_version_flag = true)]
+pub enum Command {
+    /// Search for clones (duplicates)
+    Hunt(HunterOptions),
+    /// Delete the extracted clones
+    Delete
+}
+
+#[derive(Parser)]
+#[command(author="@github.com/omkarium", version, about, long_about = None)]
+struct Args {
+    #[command(subcommand)]
+    pub command: Command,
+    /// Threads to speed up the execution
+    #[clap(short, long, default_value_t = 8)]
+    threads: u8,
+    /// Print verbose output
+    #[clap(short, long, default_value_t = false)]
+    verbose: bool,
+}
+
 fn main() {
-    let args = Args::parse();
     println!("\n################### CloneHunter ({}) #########################\n", "by Omkarium".green());
     println!("\n{}\n", 
     "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
 
-    match args.sort_by {
-        SortBy::FileType => {
-            if args.order_by.is_some() {
-                eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
-                std::process::exit(1);
-            }
-            println!("I will sort the final output by file type\n");
-        }
-        SortBy::FileSize => {
-            if let Some(order_by) = args.order_by {
-                match order_by {
-                    OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
-                    OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
+    let command = Args::parse().command;
+    let threads =  Args::parse().threads;
+    let verbose = Args::parse().verbose;
+
+    match command {
+        Command::Hunt(args) => {
+            match args.sort_by {
+                SortBy::FileType => {
+                    if args.order_by.is_some() {
+                        eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
+                        std::process::exit(1);
+                    }
+                    println!("I will sort the final output by file type\n");
                 }
-            } else {
-                eprintln!("Error: --order-by is required with --sort-by file-size\n");
-                std::process::exit(1);
-            }
-        }
-        SortBy::Both => {
-            if let Some(order_by) = args.order_by {
-                match order_by {
-                    OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
-                    OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
+                SortBy::FileSize => {
+                    if let Some(order_by) = args.order_by {
+                        match order_by {
+                            OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
+                            OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
+                        }
+                    } else {
+                        eprintln!("Error: --order-by is required with --sort-by file-size\n");
+                        std::process::exit(1);
+                    }
                 }
+                SortBy::Both => {
+                    if let Some(order_by) = args.order_by {
+                        match order_by {
+                            OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
+                            OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
+                        }
+                    } else {
+                        eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
+                        std::process::exit(1);
+                    }
+                },
+            }
+        
+            let pb = ProgressBar::new_spinner();
+            pb.enable_steady_tick(Duration::from_millis(120));
+            pb.set_style(
+                ProgressStyle::with_template("{spinner:.blue} {msg} {spinner:.blue}")
+                    .unwrap()
+                    // For more spinners check out the cli-spinners project:
+                    // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
+                    .tick_strings(&[
+                        "▹▹▹▹▹",
+                        "▸▹▹▹▹",
+                        "▹▸▹▹▹",
+                        "▹▹▸▹▹",
+                        "▹▹▹▸▹",
+                        "▹▹▹▹▸",
+                        "▪▪▪▪▪",
+                    ]),
+            );
+            pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
+        
+            unsafe { VERBOSE = verbose; }
+        
+            
+        
+            let path = PathBuf::from(args.source_dir.clone());
+        
+            if args.no_max_depth {
+                DIR_LIST.lock().unwrap().push(path.clone());
+                recurse_dirs(&path, args.extension.as_deref());
             } else {
-                eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
-                std::process::exit(1);
+                walk_dirs(&path, args.max_depth, threads, args.extension.as_deref());
+            }
+        
+            pb.finish_with_message("Scan completed");
+            
+            let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
+        
+            println!("\n\n**** Operational Info ****\n");
+            println!("Operating system                              : {}", env::consts::OS);
+            println!("The source directory you provided             : {}", args.source_dir);
+            println!("Maximum depth of directories to look for      : {}", if args.no_max_depth { "Ignored".to_owned() } else { args.max_depth.to_string() });
+            println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
+            println!("Total files found in the directories          : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
+            println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
+            println!("Total threads about to be used                : {}", threads);
+            println!("Perform a Checksum?                           : {}", args.checksum);
+            println!("Verbose printing?                             : {}", verbose);
+            println!("Target file type / Extension                  : {}", args.extension.unwrap_or("NA".to_string()));
+            println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
+            println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+        
+            if confirmation() == "Y" {
+                let a = FILE_LIST.lock().unwrap().to_vec();
+                let start_time = Instant::now();
+                let sort_order = SortOrder(args.sort_by, args.order_by);
+                let dup_data = run(a, args.checksum, threads, sort_order);
+                let elapsed = Some(start_time.elapsed());
+        
+                println!("\n============Results==============\n");
+                
+                println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
+                println!("Total duplicate records found: {}", dup_data.0);
+                println!("Total duplicate records file size on the disk: {}", human_bytes(dup_data.1 as f64));
+                println!("\nWe are done. Have a nice day 😎");
+        
+                println!("\n=================================\n");
+            } else {
+                println!("\nPhew... You QUIT!\n");
             }
         },
-    }
-
-    let pb = ProgressBar::new_spinner();
-    pb.enable_steady_tick(Duration::from_millis(120));
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg} {spinner:.blue}")
-            .unwrap()
-            // For more spinners check out the cli-spinners project:
-            // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
-            .tick_strings(&[
-                "▹▹▹▹▹",
-                "▸▹▹▹▹",
-                "▹▸▹▹▹",
-                "▹▹▸▹▹",
-                "▹▹▹▸▹",
-                "▹▹▹▹▸",
-                "▪▪▪▪▪",
-            ]),
-    );
-    pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
-
-    unsafe { VERBOSE = args.verbose; }
-
-    let path = PathBuf::from(args.source_dir.clone());
-
-    if args.no_max_depth {
-        DIR_LIST.lock().unwrap().push(path.clone());
-        recurse_dirs(&path, args.extension.as_deref());
-    } else {
-        walk_dirs(&path, args.max_depth, args.threads, args.extension.as_deref());
-    }
-
-    pb.finish_with_message("Scan completed");
+        Command::Delete => todo!(),
+    };
     
-    let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
-
-    println!("\n\n**** Operational Info ****\n");
-    println!("Operating system                              : {}", env::consts::OS);
-    println!("The source directory you provided             : {}", args.source_dir);
-    println!("Maximum depth of directories to look for      : {}", if args.no_max_depth { "Ignored".to_owned() } else { args.max_depth.to_string() });
-    println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
-    println!("Total files found in the directories          : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
-    println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
-    println!("Total threads about to be used                : {}", args.threads);
-    println!("Perform a Checksum?                           : {}", args.checksum);
-    println!("Verbose printing?                             : {}", args.verbose);
-    println!("Target file type / Extension                  : {}", args.extension.unwrap_or("NA".to_string()));
-    println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
-    println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
-
-    if confirmation() == "Y" {
-        let a = FILE_LIST.lock().unwrap().to_vec();
-        let start_time = Instant::now();
-        let sort_order = SortOrder(args.sort_by, args.order_by);
-        let dup_data = run(a, args.checksum, args.threads, sort_order);
-        let elapsed = Some(start_time.elapsed());
-
-        println!("\n============Results==============\n");
-        
-        println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
-        println!("Total duplicate records found: {}", dup_data.0);
-        println!("Total duplicate records file size on the disk: {}", human_bytes(dup_data.1 as f64));
-        println!("\nWe are done. Have a nice day 😎");
-
-        println!("\n=================================\n");
-    } else {
-        println!("\nPhew... You QUIT!\n");
-    }
 }
