@@ -26,7 +26,7 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::trait_defs;
+use crate::{config::{OrderBy, SortBy}, trait_defs};
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -90,21 +90,6 @@ pub struct FileMetaData<'a> {
 struct Grouper {
     hash_to_bigint: BigUint,
     path_buf: PathBuf,
-}
-
-/// SortBy User Option
-#[derive(clap::ValueEnum, Clone, Debug)]
-pub enum SortBy {
-    FileType,
-    FileSize,
-    Both,
-}
-
-/// OrderBy User Option
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
-pub enum OrderBy {
-    Asc,
-    Desc,
 }
 
 /// Struct which holds SortBy and OrderBy User Options
