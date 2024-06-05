@@ -8,6 +8,7 @@ use jwalk::WalkDir;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
     fs::{self, File},
@@ -26,7 +27,7 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::{config::{OrderBy, SortBy}, trait_defs};
+use crate::{config::{OrderBy, OutputStyle, SortBy}, trait_defs};
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -98,7 +99,17 @@ pub struct SortOrder(pub SortBy, pub Option<OrderBy>);
 /// Printer configuration
 pub struct PrinterConfig {
     pub file : Option<File>,
-    pub sort_order: SortOrder
+    pub sort_order: SortOrder,
+    pub output_style: OutputStyle
+}
+
+/// JSON printer
+#[derive(Serialize, Deserialize)]
+pub struct PrinterJSONObject {
+    duplicate_group_no: usize,
+    duplicate_group_count: usize,
+    duplicate_group_bytes_each: usize,
+    duplicate_list: Vec<String>
 }
 
 // Common code for recurse_dirs and walk_dirs
@@ -307,22 +318,61 @@ where
     } else {
         // Write the output to a file
         let mut writer = BufWriter::new(print_config.file.unwrap());
+
         println!("\nWriting the output to the file ...");
+        
+        match print_config.output_style {
+            OutputStyle::Default => {
+                for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
+                    let x = arc_capacities.get(i).unwrap();
+                    let y = human_bytes(x.cast());
+        
+                    duplicates_total_size += x.cast() as u64;
+        
+                    let header = format!("\nDuplicate {:?}, {} ({} bytes) each\n", u, y, x.cast());
+                    let _ = writer.write(header.as_bytes());
+        
+                    for i in k.clone().into_iter() {
+                        let message = format!("      {:?}\n", i);
+                        let _ = writer.write(message.as_bytes());
+                    }
+                }
+            },
+            OutputStyle::JSON => {
+                let mut print_json_array = Vec::new();
+                let mut json_output = String::new();
+                
+                for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
+                    let mut print_json_object = PrinterJSONObject {
+                        duplicate_group_no: 0,
+                        duplicate_group_count: 0,
+                        duplicate_group_bytes_each: 0,
+                        duplicate_list: Vec::new(),
+                    };
 
-        for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
-            let x = arc_capacities.get(i).unwrap();
-            let y = human_bytes(x.cast());
+                    let x = arc_capacities.get(i).unwrap();
+                            
+                    print_json_object.duplicate_group_no = u;
+                    print_json_object.duplicate_group_count = k.clone().into_iter().collect::<Vec<_>>().len();
+                    print_json_object.duplicate_group_bytes_each = x.cast() as usize;
+        
+        
+                    for i in k.clone().into_iter() {
+                        let message = format!("{:?}", i);
+                        print_json_object.duplicate_list.push(message);
+                    }
 
-            duplicates_total_size += x.cast() as u64;
+                    print_json_array.push(print_json_object);
 
-            let header = format!("\nDuplicate {:?}, {} ({} bytes) each\n", u, y, x.cast());
-            let _ = writer.write(header.as_bytes());
+                    // Serialize it to a JSON string.
+                    json_output = serde_json::to_string_pretty(&print_json_array).expect("Failed to Serialize to JSON String");
+                }
 
-            for i in k.clone().into_iter() {
-                let message = format!("      {:?}\n", i);
-                let _ = writer.write(message.as_bytes());
+                let _ = writer.write(json_output.as_bytes());
+
             }
-        }
+        };
+        
         println!("\nFinished writing\n");
 
     }

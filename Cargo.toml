@@ -1,6 +1,6 @@
 [package]
 name = "clonehunter"
-version = "0.3.1"
+version = "0.4.0"
 edition = "2021"
 description = "An ultra simple command line utility that identifies groups of identical files and displays them to the console"
 authors = ["Venkatesh Omkaram"]
@@ -40,6 +40,8 @@ hashbrown = "0.14.3"
 fxhash = "0.2.1"
 jwalk = "0.8.1"
 #gxhash = "3.4.1" //Creates issues when RUSTFLAGS are not used
+serde = { version = "1.0.203", features = ["derive"]}
+serde_json = "=1.0.117"
 
 [profile.release]
 opt-level = 'z'

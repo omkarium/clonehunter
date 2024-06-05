@@ -1,5 +1,7 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
+use std::fmt;
+
 use clap::Parser;
 
 #[derive(clap::Args, Debug, Clone)]
@@ -52,7 +54,7 @@ pub enum OrderBy {
     Desc,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Copy, Debug)]
 pub enum OutputStyle {
     /// Use the default style of printing the output to a file
     Default,
@@ -60,7 +62,7 @@ pub enum OutputStyle {
     JSON,
 }
 
-#[derive(clap::Subcommand, Debug)]
+#[derive(clap::Subcommand, Debug, Clone)]
 #[command(disable_version_flag = true)]
 pub enum Command {
     /// Search for clones (duplicates)
@@ -69,7 +71,7 @@ pub enum Command {
     Delete,
 }
 
-#[derive(Parser)]
+#[derive(Parser, Clone)]
 #[command(author="@github.com/omkarium", version, about, long_about = None)]
 pub struct Args {
     #[command(subcommand)]
@@ -80,4 +82,22 @@ pub struct Args {
     /// Print verbose output
     #[clap(short, long, default_value_t = false)]
     pub verbose: bool,
+}
+
+impl fmt::Display for OrderBy {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OrderBy::Asc => write!(f, "{}", "Asc"),
+            OrderBy::Desc => write!(f, "{}", "Desc"),
+        }
+    }
+}
+
+impl fmt::Display for OutputStyle {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OutputStyle::Default => write!(f, "{}", "Default"),
+            OutputStyle::JSON => write!(f, "{}", "JSON"),
+        }
+    }
 }

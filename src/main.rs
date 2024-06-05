@@ -140,67 +140,46 @@ fn main() {
             pb.finish_with_message("Scan completed");
 
             let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
-
             println!("\n\n**** Operational Info ****\n");
-            println!(
-                "Operating system                              : {}",
-                env::consts::OS
-            );
-            println!(
-                "The source directory you provided             : {}",
-                args.source_dir
-            );
-            println!(
-                "Maximum depth of directories to look for      : {}",
-                if args.no_max_depth {
-                    "Ignored".to_owned()
-                } else {
-                    args.max_depth.to_string()
-                }
-            );
-            println!(
-                "Total directories found in the path provided  : {}",
-                DIR_LIST.lock().unwrap().to_vec().capacity()
-            );
-            println!(
-                "Total files found in the directories          : {}",
-                FILE_LIST.lock().unwrap().to_vec().capacity()
-            );
-            println!(
-                "Total size of source directory                : {}",
-                human_bytes(total_files_size.unwrap_or_default() as f64)
-            );
-            println!(
-                "Total threads about to be used                : {}",
-                threads
-            );
-            println!(
-                "Perform a Checksum?                           : {}",
-                args.checksum
-            );
-            println!(
-                "Verbose printing?                             : {}",
-                verbose
-            );
-            println!(
-                "Target file type / Extension                  : {}",
-                args.extension.unwrap_or("NA".to_string())
-            );
+            println!("Operating system                              : {}", env::consts::OS);
+            println!("The source directory you provided             : {}", args.source_dir);
+            println!("Maximum depth of directories to look for      : {}", if args.no_max_depth {"Ignored".to_owned()} else {args.max_depth.to_string()});
+            println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
+            println!("Total files found in the directories          : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
+            println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
+            println!("Total threads about to be used                : {}", threads);
+            println!("Perform a Checksum?                           : {}", args.checksum);
+            println!("Verbose printing?                             : {}", verbose);
+            println!("Target file type / Extension                  : {}", args.extension.unwrap_or("NA".to_string()));
+            println!("Sort by                                       : {:?}", args.sort_by);
+            println!("Order by                                      : {}", if args.order_by.is_some() {
+                args.order_by.unwrap().to_string()
+            } else {
+                "NA".to_owned()
+            });
+            println!("Output file                                   : {}", args.output_file.clone().unwrap_or("NA".to_owned()));
+            println!("Output style                                  : {}", if args.output_style.is_some() {
+                args.output_style.unwrap().to_string()
+            } else {
+                "NA".to_owned()
+            });
+
             println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
             println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
             if confirmation() == "Y" {
-                let a = FILE_LIST.lock().unwrap().to_vec();
+                let vec_pathbuf = FILE_LIST.lock().unwrap().to_vec();
                 let start_time = Instant::now();
                 let sort_order = SortOrder(args.sort_by, args.order_by);
 
-                let print_conf = if args.output_style.is_some() && args.output_file.is_some() {
-                    match args.output_style.unwrap() {
+                let print_conf = if args.output_style.is_some() && args.output_file.clone().is_some() {
+                    match args.output_style.clone().unwrap() {
                         OutputStyle::Default | OutputStyle::JSON  => {
                             let file = File::create(args.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --out-path option\n");
                             PrinterConfig {
                                 file: Some(file),
                                 sort_order,
+                                output_style: args.output_style.unwrap()
                             }
                         }
                     }
@@ -208,10 +187,11 @@ fn main() {
                     PrinterConfig {
                         file: None,
                         sort_order,
+                        output_style: OutputStyle::Default,
                     }
                 };
 
-                let dup_data = run(a, args.checksum, threads, print_conf);
+                let dup_data = run(vec_pathbuf, args.checksum, threads, print_conf);
                 let elapsed = Some(start_time.elapsed());
 
                 println!("\n============Results==============\n");
