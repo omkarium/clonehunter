@@ -1,6 +1,6 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use common::{logger, core::{print_duplicates, sort_and_group_duplicates, FileMetaData, SortOrder}};
+use common::{core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig, SortOrder}, logger};
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -36,7 +36,7 @@ use std::os::windows::fs::MetadataExt;
 /// truly duplicate. No checksum is easy and fast, but using the checksum feature is reliable. Also, the checksum feature is not
 /// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand
 /// and last few thousand bytes. This makes it fast and not resource hungry.
-pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrder) -> (u64, u64) {
+pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: PrinterConfig) -> (u64, u64) {
     let list_hashes: Arc<Mutex<Vec<(BigUint, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
 
@@ -154,12 +154,12 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
             })
         });
 
-        println!("\n\nFinding duplicates...");
+        println!("\n\nFinding duplicates ...");
 
         print_duplicates(
             &mut hashmap_for_duplicates_meta,
             &hashmap_for_duplicates_meta_caps,
-            sort_order,
+            print_config,
         )
     } else {
         pool.install(|| {
@@ -247,6 +247,6 @@ pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, sort_order: SortOrd
 
         let mut hashmap_group = sort_and_group_duplicates(list_hashes.lock().unwrap().as_slice());
 
-        print_duplicates(&mut hashmap_group, &list_hashes_caps, sort_order)
+        print_duplicates(&mut hashmap_group, &list_hashes_caps, print_config)
     }
 }

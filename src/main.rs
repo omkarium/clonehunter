@@ -43,11 +43,11 @@
 //! If you are running clonehunter on bunch of different files or file types, let's say some mp4, pdf, txt etc but they all have file sizes of 0 bytes, and if you used the -c checksum option, you will observe all of the 0 size files grouped together as duplicates in the final output on the screen.
 
 mod operations;
-use common::core::{confirmation, recurse_dirs, walk_dirs, OrderBy, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
+use common::core::{confirmation, recurse_dirs, walk_dirs, OrderBy, PrinterConfig, SortBy, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE};
 use indicatif::{ProgressBar, ProgressStyle};
 use crate::operations::run;
 use clap::Parser;
-use std::{env, path::PathBuf, time::{Duration, Instant}};
+use std::{env, fs::File, path::PathBuf, time::{Duration, Instant}};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -79,7 +79,10 @@ pub struct HunterOptions {
     sort_by: SortBy,
     /// Prints the sorted output either in Ascending or Descending order
     #[clap(short, long)]
-    order_by: Option<OrderBy>  
+    order_by: Option<OrderBy>,
+    /// Write the output to a file
+    #[clap(long)]
+    output_path: Option<String>
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -201,7 +204,14 @@ fn main() {
                 let a = FILE_LIST.lock().unwrap().to_vec();
                 let start_time = Instant::now();
                 let sort_order = SortOrder(args.sort_by, args.order_by);
-                let dup_data = run(a, args.checksum, threads, sort_order);
+                let prin_conf = if let Some(out_path) = args.output_path {
+                    let file = File::create(out_path).expect("Error: Failed to create the output file you passed via --out-path option\n");
+                     PrinterConfig { file: Some(file), sort_order }
+                } else {
+                     PrinterConfig {file: None, sort_order }
+                };
+
+                let dup_data = run(a, args.checksum, threads, prin_conf);
                 let elapsed = Some(start_time.elapsed());
         
                 println!("\n============Results==============\n");

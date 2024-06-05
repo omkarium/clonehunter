@@ -10,9 +10,9 @@ use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
 use std::{
     fmt::Debug,
-    fs,
+    fs::{self, File},
     hash::Hash,
-    io::{stdin, stdout, Write},
+    io::{stdin, stdout, BufWriter, Write},
     path::{Path, PathBuf},
     rc::Rc,
     sync::{Arc, Mutex},
@@ -109,6 +109,12 @@ pub enum OrderBy {
 
 /// Struct which holds SortBy and OrderBy User Options
 pub struct SortOrder(pub SortBy, pub Option<OrderBy>);
+
+/// Printer configuration
+pub struct PrinterConfig {
+    pub file : Option<File>,
+    pub sort_order: SortOrder
+}
 
 // Common code for recurse_dirs and walk_dirs
 fn walk_and_recurse_dirs_inner<T>(path: T, ext: Option<&str>)
@@ -229,7 +235,7 @@ pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str
 pub fn print_duplicates<T, U, K>(
     arc_vec_paths: &mut Arc<Mutex<HashMap<K, T>>>,
     arc_capacities: &Arc<Mutex<HashMap<K, U>>>,
-    sort_order: SortOrder,
+    print_config: PrinterConfig,
 ) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone + Paths,
@@ -251,8 +257,8 @@ where
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
     let mut filtered_duplicates_result: Vec<(&K, &mut T)> = filtered_duplicates_result.collect();
 
-    let sort_by = sort_order.0;
-    let order_by = sort_order.1;
+    let sort_by = print_config.sort_order.0;
+    let order_by = print_config.sort_order.1;
 
     match sort_by {
         SortBy::FileType => {
@@ -302,15 +308,38 @@ where
         }
     };
 
-    // Prints the duplicates
-    for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
-        let x = arc_capacities.get(i).unwrap();
-        let y = human_bytes(x.cast());
-        duplicates_total_size += x.cast() as u64;
-        println!("\nDuplicate {:?}, {} ({} bytes) each", u, y, x.cast());
-        for i in k.clone().into_iter() {
-            println!("      {:?}", i);
+    if print_config.file.is_none() {
+        // Prints the duplicates to the Screen
+        for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
+            let x = arc_capacities.get(i).unwrap();
+            let y = human_bytes(x.cast());
+            duplicates_total_size += x.cast() as u64;
+            println!("\nDuplicate {:?}, {} ({} bytes) each", u, y, x.cast());
+            for i in k.clone().into_iter() {
+                println!("      {:?}", i);
+            }
         }
+    } else {
+        // Write the output to a file
+        let mut writer = BufWriter::new(print_config.file.unwrap());
+        println!("\nWriting the output to the file ...");
+
+        for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
+            let x = arc_capacities.get(i).unwrap();
+            let y = human_bytes(x.cast());
+
+            duplicates_total_size += x.cast() as u64;
+
+            let header = format!("\nDuplicate {:?}, {} ({} bytes) each\n", u, y, x.cast());
+            let _ = writer.write(header.as_bytes());
+
+            for i in k.clone().into_iter() {
+                let message = format!("      {:?}\n", i);
+                let _ = writer.write(message.as_bytes());
+            }
+        }
+        println!("\nFinished writing\n");
+
     }
 
     (duplicates_count, duplicates_total_size)
@@ -335,7 +364,7 @@ pub fn sort_and_group_duplicates(
 
     num_hashes_vec.lock().unwrap().sort_unstable();
 
-    println!("\nFinding duplicates...");
+    println!("\nFinding duplicates ...");
 
     let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
 
