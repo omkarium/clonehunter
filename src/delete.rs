@@ -22,17 +22,18 @@ pub fn delete(input_json: Vec<PrinterJSONObject>, dry_run: bool) {
         if confirmation() == "Y" {
             for mut i in input_json {
                 println!(
-                    "\nTrying deleting {} file(s) in group {}",
+                    "\nTrying deleting {} file(s) in group {} of size {}",
                     i.duplicate_group_count - 1,
-                    i.duplicate_group_no
+                    i.duplicate_group_no,
+                    human_bytes(i.duplicate_group_bytes_each as f64)
                 );
                 if let Some(retained_file) = i.duplicate_list.pop() {
+                    let mut last_file_no = 0;
                     for (l, j) in i.duplicate_list.iter().enumerate() {
+                        last_file_no = l;
                         if !dry_run {
                             if let Err(result) = remove_file(j.as_str()) {
-                                dbg!(j);
-                                failed_to_delete
-                                    .push(format!("Failed to delete the file {} due to {}", j, result));
+                                failed_to_delete.push(format!("Failed to delete the file {} due to {}", j, result));
                             } else {
                                 println!("      Deleted the file ({}) :: {}", l, j.bright_blue());
                             }
@@ -40,10 +41,18 @@ pub fn delete(input_json: Vec<PrinterJSONObject>, dry_run: bool) {
                             println!("      Deleted the file ({}) :: {}", l, j.bright_blue());
                         }
                     }
-                    println!(
-                        "\n      Retained the file :: {}\n",
-                        retained_file.bright_green()
-                    );
+                    if i.duplicate_group_bytes_each == 0 {
+                        if let Err(result) = remove_file(retained_file.as_str()) {
+                            failed_to_delete.push(format!("Failed to delete the file {} due to {}", retained_file, result));
+                        } else {
+                            println!("      Deleted the file ({}) :: {}", last_file_no+1, retained_file.bright_blue());
+                        }
+                    } else {
+                        println!(
+                            "\n      Retained the file :: {}\n",
+                            retained_file.bright_green()
+                        );
+                    }
                 }
             }
 
