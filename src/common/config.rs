@@ -42,10 +42,10 @@ pub struct HunterOptions {
 #[derive(clap::Args, Debug, Clone)]
 #[command(disable_version_flag = true)]
 pub struct DeleteOptions {
-    /// Write the output to a file (requires `-u`)
-    #[clap(short = 'f', long)]
+    /// Provide the JSON input file path which you generated using the `hunt -u json -f report_file.json` command
+    #[clap(short, long)]
     pub input_file: String,
-    /// Dry run (test if deletion works without deleting anything)
+    /// Dry run (test to see if the deletion works without deleting anything)
     #[clap(long, default_value_t = false)]
     pub dry_run: bool,
 }
