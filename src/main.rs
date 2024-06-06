@@ -46,7 +46,7 @@ mod operations;
 use crate::operations::run;
 use clap::Parser;
 use colored::Colorize;
-use common::{config::{Args, Command, OrderBy, OutputStyle, SortBy}, core::{
+use clonehunter::common::{config::{Args, Command, OrderBy, OutputStyle, SortBy}, core::{
     confirmation, recurse_dirs, walk_dirs, PrinterConfig, SortOrder, DIR_LIST,
     FILES_SIZE_BYTES, FILE_LIST, VERBOSE,
 }};

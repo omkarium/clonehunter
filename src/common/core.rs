@@ -27,7 +27,7 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::{config::{OrderBy, OutputStyle, SortBy}, trait_defs};
+use crate::common::{config::{OrderBy, OutputStyle, SortBy}, trait_defs};
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -70,7 +70,7 @@ pub fn confirmation() -> String {
 #[macro_export]
 macro_rules! logger {
     ($value: literal, $item: expr, $item2: expr) => {
-        use common::core::VERBOSE;
+        use clonehunter::common::core::VERBOSE;
 
         if unsafe { VERBOSE } {
             println!($value, $item, $item2);
