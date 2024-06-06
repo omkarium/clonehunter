@@ -1,6 +1,7 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
 use clonehunter::{logger, common::core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig}};
+use colored::Colorize;
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -54,7 +55,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
     .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
     .progress_chars("#>-"));
 
-    println!("\nFinding hashes of the files...\n");
+    println!("\n{}Finding hashes of the files...\n", "INFO :: ".bright_yellow());
 
     let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
 
@@ -154,7 +155,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
             })
         });
 
-        println!("\n\nFinding duplicates ...");
+        println!("\n\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
 
         print_duplicates(
             &mut hashmap_for_duplicates_meta,

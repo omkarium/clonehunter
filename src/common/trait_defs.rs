@@ -74,3 +74,19 @@ impl Paths for Vec<PathBuf> {
         self.get(0).unwrap().to_path_buf()
     }
 }
+
+pub trait Displayer {
+    fn to_string(&self) -> String;
+}
+
+impl Displayer for OsString {
+    fn to_string(&self) -> String {
+        self.clone().into_string().unwrap_or_else(|_| "failure".to_string())
+    }
+}
+
+impl Displayer for PathBuf {
+    fn to_string(&self) -> String {
+        self.clone().into_os_string().to_string()
+    }
+}

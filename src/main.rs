@@ -61,10 +61,10 @@ use std::{
 fn main() -> std::io::Result<()> {
     println!(
         "\n################### CloneHunter ({}) #########################\n",
-        "by Omkarium".green()
+        "by Omkarium".green().bold()
     );
     println!("\n{}\n", 
-    "[Please read the documentation at https://github.com/omkarium before you use this program]".red());
+    "[Please read the documentation at https://github.com/omkarium before you use this program]".bright_magenta());
 
     let command = Args::parse().command;
     let threads = Args::parse().threads;
@@ -196,13 +196,13 @@ fn main() -> std::io::Result<()> {
                 let dup_data = hunt(vec_pathbuf, options.checksum, threads, print_conf);
                 let elapsed = Some(start_time.elapsed());
 
-                println!("\n============Results==============\n");
+                println!("\n============{}==============\n", "Result".bright_blue());
 
                 println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
-                println!("Total duplicate records found: {}", dup_data.0);
+                println!("Total duplicate records found: {}", dup_data.0.to_string().bright_purple().bold());
                 println!(
                     "Total duplicate records file size on the disk: {}",
-                    human_bytes(dup_data.1 as f64)
+                    human_bytes(dup_data.1 as f64).bright_purple().bold()
                 );
                 println!("\nWe are done. Have a nice day 😎");
 
@@ -214,9 +214,14 @@ fn main() -> std::io::Result<()> {
         Command::Delete(options) => {
             let input_file = options.input_file;
             if let Ok(f) = File::open(input_file) {
-                delete(&f);
+                let reader = BufReader::new(f);
+                if let Ok(input_json) = serde_json::from_reader::<_,Vec<PrinterJSONObject>>(reader) {
+                    delete(input_json, options.dry_run);
+                } else {
+                    eprintln!("{}", "Error: failed to read the input file as JSON. Make sure it is a valid JSON.\n".bright_red());
+                }
             } else {
-                eprintln!("Error: the input file you have provided does not exist\n");
+                eprintln!("{}", "Error: the input file you have provided does not exist\n".bright_red());
             }
         },
     };

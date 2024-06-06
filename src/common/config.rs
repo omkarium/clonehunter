@@ -44,7 +44,10 @@ pub struct HunterOptions {
 pub struct DeleteOptions {
     /// Write the output to a file (requires `-u`)
     #[clap(short = 'f', long)]
-    pub input_file: String
+    pub input_file: String,
+    /// Dry run (test if deletion works without deleting anything)
+    #[clap(long, default_value_t = false)]
+    pub dry_run: bool,
 }
 
 /// SortBy User Option

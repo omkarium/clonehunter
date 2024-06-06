@@ -2,6 +2,7 @@
 
 use clap::builder::OsStr;
 use hashbrown::HashMap;
+use colored::Colorize;
 use human_bytes::human_bytes;
 use indicatif::ProgressBar;
 use jwalk::WalkDir;
@@ -121,7 +122,7 @@ where
     let entry = Rc::new(path.get_path());
 
     if metadata.is_dir() {
-        let base_path = entry.to_path_buf();
+        let base_path = entry.to_path_buf().canonicalize().unwrap();
 
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
@@ -129,7 +130,7 @@ where
             if let Some(ext) = ext {
                 let mut vec_ext = ext.split(",");
                 if vec_ext.any(|y| x.eq(y)) {
-                    FILE_LIST.lock().unwrap().push(entry.to_path_buf());
+                    FILE_LIST.lock().unwrap().push(entry.to_path_buf().canonicalize().unwrap_or_else(|_| entry.to_path_buf()));
                     if cfg!(unix) {
                         #[cfg(target_os = "linux")]
                         {
@@ -159,7 +160,7 @@ where
                     }
                 }
             } else {
-                FILE_LIST.lock().unwrap().push(entry.to_path_buf());
+                FILE_LIST.lock().unwrap().push(entry.to_path_buf().canonicalize().unwrap_or_else(|_| entry.to_path_buf()));
                 if cfg!(unix) {
                     #[cfg(target_os = "linux")]
                     {
@@ -235,7 +236,7 @@ pub fn print_duplicates<T, U, K>(
 ) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone + Paths,
-    <T as IntoIterator>::Item: Debug,
+    <T as IntoIterator>::Item: Debug + Displayer,
     U: AsF64,
     K: Eq + Hash,
 {
@@ -304,6 +305,8 @@ where
         }
     };
 
+    println!("\n{}Finished.", "INFO :: ".bright_yellow());
+
     if print_config.file.is_none() {
         // Prints the duplicates to the Screen
         for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
@@ -312,14 +315,14 @@ where
             duplicates_total_size += x.cast() as u64;
             println!("\nDuplicate {:?}, {} ({} bytes) each", u, y, x.cast());
             for i in k.clone().into_iter() {
-                println!("      {:?}", i);
+                println!("      {}", i.to_string().bright_blue());
             }
         }
     } else {
         // Write the output to a file
         let mut writer = BufWriter::new(print_config.file.unwrap());
 
-        println!("\nWriting the output to the file ...");
+        println!("\n{}Writing the output to the file (This activity alone may take some time in case JSON output is opted) ...", "INFO :: ".bright_yellow());
         
         match print_config.output_style {
             OutputStyle::Default => {
@@ -351,6 +354,8 @@ where
                     };
 
                     let x = arc_capacities.get(i).unwrap();
+
+                    duplicates_total_size += x.cast() as u64;
                             
                     print_json_object.duplicate_group_no = u;
                     print_json_object.duplicate_group_count = k.clone().into_iter().collect::<Vec<_>>().len();
@@ -358,8 +363,7 @@ where
         
         
                     for i in k.clone().into_iter() {
-                        let message = format!("{:?}", i);
-                        print_json_object.duplicate_list.push(message);
+                        print_json_object.duplicate_list.push(i.to_string());
                     }
 
                     print_json_array.push(print_json_object);
@@ -373,7 +377,7 @@ where
             }
         };
         
-        println!("\nFinished writing\n");
+        println!("\n{}Finished writing.\n", "INFO :: ".bright_yellow());
 
     }
 
@@ -399,7 +403,7 @@ pub fn sort_and_group_duplicates(
 
     num_hashes_vec.lock().unwrap().sort_unstable();
 
-    println!("\nFinding duplicates ...");
+    println!("\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
 
     let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
 
