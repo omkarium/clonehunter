@@ -104,12 +104,12 @@ pub struct PrinterConfig {
 }
 
 /// JSON printer
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct PrinterJSONObject {
-    duplicate_group_no: usize,
-    duplicate_group_count: usize,
-    duplicate_group_bytes_each: usize,
-    duplicate_list: Vec<String>
+    pub duplicate_group_no: usize,
+    pub duplicate_group_count: usize,
+    pub duplicate_group_bytes_each: usize,
+    pub duplicate_list: Vec<String>
 }
 
 // Common code for recurse_dirs and walk_dirs

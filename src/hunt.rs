@@ -1,6 +1,6 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use clonehunter::{logger, common::{core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig}}};
+use clonehunter::{logger, common::core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig}};
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
@@ -36,7 +36,7 @@ use std::os::windows::fs::MetadataExt;
 /// truly duplicate. No checksum is easy and fast, but using the checksum feature is reliable. Also, the checksum feature is not
 /// going to calculate the checksum of each file to the end of file. Instead, it will only generate a checksum based on first few thousand
 /// and last few thousand bytes. This makes it fast and not resource hungry.
-pub fn run(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: PrinterConfig) -> (u64, u64) {
+pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: PrinterConfig) -> (u64, u64) {
     let list_hashes: Arc<Mutex<Vec<(BigUint, &std::path::Path)>>> =
         Arc::new(Mutex::new(Vec::new()));
 

@@ -42,24 +42,23 @@
 //!
 //! If you are running clonehunter on bunch of different files or file types, let's say some mp4, pdf, txt etc but they all have file sizes of 0 bytes, and if you used the -c checksum option, you will observe all of the 0 size files grouped together as duplicates in the final output on the screen.
 
-mod operations;
-use crate::operations::run;
+mod hunt;
+mod delete;
+
+use crate::hunt::hunt;
 use clap::Parser;
 use colored::Colorize;
 use clonehunter::common::{config::{Args, Command, OrderBy, OutputStyle, SortBy}, core::{
-    confirmation, recurse_dirs, walk_dirs, PrinterConfig, SortOrder, DIR_LIST,
-    FILES_SIZE_BYTES, FILE_LIST, VERBOSE,
+    confirmation, recurse_dirs, walk_dirs, PrinterConfig, PrinterJSONObject, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE
 }};
+use delete::delete;
 use human_bytes::human_bytes;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
-    env,
-    fs::File,
-    path::PathBuf,
-    time::{Duration, Instant},
+    env, fs::File, io::BufReader, path::PathBuf, time::{Duration, Instant}
 };
 
-fn main() {
+fn main() -> std::io::Result<()> {
     println!(
         "\n################### CloneHunter ({}) #########################\n",
         "by Omkarium".green()
@@ -70,42 +69,12 @@ fn main() {
     let command = Args::parse().command;
     let threads = Args::parse().threads;
     let verbose = Args::parse().verbose;
+    
 
     match command {
-        Command::Hunt(args) => {
-            match args.sort_by {
-                SortBy::FileType => {
-                    if args.order_by.is_some() {
-                        eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
-                        std::process::exit(1);
-                    }
-                    println!("I will sort the final output by file type\n");
-                }
-                SortBy::FileSize => {
-                    if let Some(order_by) = args.order_by {
-                        match order_by {
-                            OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
-                            OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
-                        }
-                    } else {
-                        eprintln!("Error: --order-by is required with --sort-by file-size\n");
-                        std::process::exit(1);
-                    }
-                }
-                SortBy::Both => {
-                    if let Some(order_by) = args.order_by {
-                        match order_by {
-                            OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
-                            OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
-                        }
-                    } else {
-                        eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
-                        std::process::exit(1);
-                    }
-                }
-            }
-
+        Command::Hunt(options) => {
             let pb = ProgressBar::new_spinner();
+
             pb.enable_steady_tick(Duration::from_millis(120));
             pb.set_style(
                 ProgressStyle::with_template("{spinner:.blue} {msg} {spinner:.blue}")
@@ -122,19 +91,52 @@ fn main() {
                         "▪▪▪▪▪",
                     ]),
             );
+            
+            match options.sort_by {
+                SortBy::FileType => {
+                    if options.order_by.is_some() {
+                        eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
+                        std::process::exit(1);
+                    }
+                    println!("I will sort the final output by file type\n");
+                }
+                SortBy::FileSize => {
+                    if let Some(order_by) = options.order_by {
+                        match order_by {
+                            OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
+                            OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
+                        }
+                    } else {
+                        eprintln!("Error: --order-by is required with --sort-by file-size\n");
+                        std::process::exit(1);
+                    }
+                }
+                SortBy::Both => {
+                    if let Some(order_by) = options.order_by {
+                        match order_by {
+                            OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
+                            OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
+                        }
+                    } else {
+                        eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
+                        std::process::exit(1);
+                    }
+                }
+            }
+
             pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
 
             unsafe {
                 VERBOSE = verbose;
             }
 
-            let path = PathBuf::from(args.source_dir.clone());
+            let path = PathBuf::from(options.source_dir.clone());
 
-            if args.no_max_depth {
+            if options.no_max_depth {
                 DIR_LIST.lock().unwrap().push(path.clone());
-                recurse_dirs(&path, args.extension.as_deref());
+                recurse_dirs(&path, options.extension.as_deref());
             } else {
-                walk_dirs(&path, args.max_depth, threads, args.extension.as_deref());
+                walk_dirs(&path, options.max_depth, threads, options.extension.as_deref());
             }
 
             pb.finish_with_message("Scan completed");
@@ -142,24 +144,24 @@ fn main() {
             let total_files_size = FILES_SIZE_BYTES.lock().unwrap();
             println!("\n\n**** Operational Info ****\n");
             println!("Operating system                              : {}", env::consts::OS);
-            println!("The source directory you provided             : {}", args.source_dir);
-            println!("Maximum depth of directories to look for      : {}", if args.no_max_depth {"Ignored".to_owned()} else {args.max_depth.to_string()});
+            println!("The source directory you provided             : {}", options.source_dir);
+            println!("Maximum depth of directories to look for      : {}", if options.no_max_depth {"Ignored".to_owned()} else {options.max_depth.to_string()});
             println!("Total directories found in the path provided  : {}", DIR_LIST.lock().unwrap().to_vec().capacity());
             println!("Total files found in the directories          : {}", FILE_LIST.lock().unwrap().to_vec().capacity());
             println!("Total size of source directory                : {}", human_bytes(total_files_size.unwrap_or_default() as f64));
             println!("Total threads about to be used                : {}", threads);
-            println!("Perform a Checksum?                           : {}", args.checksum);
+            println!("Perform a Checksum?                           : {}", options.checksum);
             println!("Verbose printing?                             : {}", verbose);
-            println!("Target file type / Extension                  : {}", args.extension.unwrap_or("NA".to_string()));
-            println!("Sort by                                       : {:?}", args.sort_by);
-            println!("Order by                                      : {}", if args.order_by.is_some() {
-                args.order_by.unwrap().to_string()
+            println!("Target file type / Extension                  : {}", options.extension.unwrap_or("NA".to_string()));
+            println!("Sort by                                       : {:?}", options.sort_by);
+            println!("Order by                                      : {}", if options.order_by.is_some() {
+                options.order_by.unwrap().to_string()
             } else {
                 "NA".to_owned()
             });
-            println!("Output file                                   : {}", args.output_file.clone().unwrap_or("NA".to_owned()));
-            println!("Output style                                  : {}", if args.output_style.is_some() {
-                args.output_style.unwrap().to_string()
+            println!("Output file                                   : {}", options.output_file.clone().unwrap_or("NA".to_owned()));
+            println!("Output style                                  : {}", if options.output_style.is_some() {
+                options.output_style.unwrap().to_string()
             } else {
                 "NA".to_owned()
             });
@@ -170,16 +172,16 @@ fn main() {
             if confirmation() == "Y" {
                 let vec_pathbuf = FILE_LIST.lock().unwrap().to_vec();
                 let start_time = Instant::now();
-                let sort_order = SortOrder(args.sort_by, args.order_by);
+                let sort_order = SortOrder(options.sort_by, options.order_by);
 
-                let print_conf = if args.output_style.is_some() && args.output_file.clone().is_some() {
-                    match args.output_style.clone().unwrap() {
+                let print_conf = if options.output_style.is_some() && options.output_file.clone().is_some() {
+                    match options.output_style.clone().unwrap() {
                         OutputStyle::Default | OutputStyle::JSON  => {
-                            let file = File::create(args.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --out-path option\n");
+                            let file = File::create(options.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --out-path option\n");
                             PrinterConfig {
                                 file: Some(file),
                                 sort_order,
-                                output_style: args.output_style.unwrap()
+                                output_style: options.output_style.unwrap()
                             }
                         }
                     }
@@ -191,7 +193,7 @@ fn main() {
                     }
                 };
 
-                let dup_data = run(vec_pathbuf, args.checksum, threads, print_conf);
+                let dup_data = hunt(vec_pathbuf, options.checksum, threads, print_conf);
                 let elapsed = Some(start_time.elapsed());
 
                 println!("\n============Results==============\n");
@@ -209,6 +211,14 @@ fn main() {
                 println!("\nPhew... You QUIT!\n");
             }
         }
-        Command::Delete => todo!(),
+        Command::Delete(options) => {
+            let input_file = options.input_file;
+            if let Ok(f) = File::open(input_file) {
+                delete(&f);
+            } else {
+                eprintln!("Error: the input file you have provided does not exist\n");
+            }
+        },
     };
+    Ok(())
 }

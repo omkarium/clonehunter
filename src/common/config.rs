@@ -39,6 +39,14 @@ pub struct HunterOptions {
     pub output_file: Option<String>,
 }
 
+#[derive(clap::Args, Debug, Clone)]
+#[command(disable_version_flag = true)]
+pub struct DeleteOptions {
+    /// Write the output to a file (requires `-u`)
+    #[clap(short = 'f', long)]
+    pub input_file: String
+}
+
 /// SortBy User Option
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
 pub enum SortBy {
@@ -68,7 +76,7 @@ pub enum Command {
     /// Search for clones (duplicates)
     Hunt(HunterOptions),
     /// Delete the extracted clones
-    Delete,
+    Delete(DeleteOptions),
 }
 
 #[derive(Parser, Clone)]
