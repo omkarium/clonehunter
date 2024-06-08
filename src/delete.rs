@@ -64,7 +64,7 @@ pub fn delete(input_json: Vec<PrinterJSONObject>, dry_run: bool) {
             } else if dry_run {
                 println!("\nNothing changed. This was a dry run.\n");
             } else {
-                println!("\nLooks like we are done. Now don't start crying\n");
+                println!("\nLooks like we are done deleting. Now please don't start crying.\n");
             }
         } else {
             println!("Phew... You QUIT!\n");
