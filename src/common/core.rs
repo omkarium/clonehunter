@@ -243,7 +243,7 @@ where
         .for_each(|x| duplicates_count += x.1.len() as u64);
 
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
-    let mut filtered_duplicates_result: Vec<(&K, &mut T)> = filtered_duplicates_result.collect();
+    let mut filtered_duplicates_result: Vec<(&K, &T)> = filtered_duplicates_result.map(|(&ref k, v)| (k, &*v)).collect();
 
     let sort_by = print_config.sort_order.0;
     let order_by = print_config.sort_order.1;
