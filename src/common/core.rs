@@ -4,18 +4,16 @@ use clap::builder::OsStr;
 use hashbrown::HashMap;
 use colored::Colorize;
 use human_bytes::human_bytes;
-use indicatif::ProgressBar;
 use jwalk::WalkDir;
 use lazy_static::lazy_static;
-use num_bigint::BigUint;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelBridge, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Debug,
     fs::{self, File},
     hash::Hash,
     io::{stdin, stdout, BufWriter, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
     time::SystemTime,
@@ -85,13 +83,6 @@ pub struct FileMetaData<'a> {
     pub file_name: &'a str,
     pub modified_date: SystemTime,
     pub file_size: u64,
-}
-
-/// Used to store Hash Digest as BigInt and Path of Files for Sorting Operations
-#[derive(Ord, PartialOrd, PartialEq, Eq, Debug)]
-struct Grouper {
-    hash_to_bigint: BigUint,
-    path_buf: PathBuf,
 }
 
 /// Struct which holds SortBy and OrderBy User Options
@@ -382,51 +373,4 @@ where
     }
 
     (duplicates_count, duplicates_total_size)
-}
-
-/// This function helps in sorting the vec of Hash digest and filePath.
-/// Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
-pub fn sort_and_group_duplicates(
-    list_hashes: &[(BigUint, &Path)],
-) -> Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> {
-    let num_hashes_vec = Arc::new(Mutex::new(Vec::new()));
-    let bar = ProgressBar::new(num_hashes_vec.lock().unwrap().len() as u64);
-    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> =
-        Arc::new(Mutex::new(HashMap::new()));
-
-    for (i, k) in list_hashes.into_iter() {
-        num_hashes_vec.lock().unwrap().push(Grouper {
-            hash_to_bigint: i.to_owned(),
-            path_buf: k.to_owned().into(),
-        });
-    }
-
-    num_hashes_vec.lock().unwrap().sort_unstable();
-
-    println!("\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
-
-    let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
-
-    num_hashes_vec.par_iter_mut().for_each(|x| {
-        let r = &x.path_buf;
-        let r1 = &x.hash_to_bigint;
-        if hashmap_accumulator.lock().unwrap().contains_key(r1) {
-            let mut new = hashmap_accumulator
-                .lock()
-                .unwrap()
-                .get(r1)
-                .unwrap()
-                .to_owned();
-            new.push(r.clone());
-            hashmap_accumulator.lock().unwrap().insert(r1.clone(), new);
-        } else {
-            hashmap_accumulator
-                .lock()
-                .unwrap()
-                .insert(r1.clone(), vec![r.clone()]);
-        }
-        bar.inc(1);
-    });
-
-    hashmap_accumulator
 }

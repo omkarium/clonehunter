@@ -1,13 +1,14 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use clonehunter::{logger, common::core::{print_duplicates, sort_and_group_duplicates, FileMetaData, PrinterConfig}};
+use clonehunter::{logger, common::core::{print_duplicates, FileMetaData, PrinterConfig}};
 use colored::Colorize;
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
-use std::ffi::OsString;
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use std::{ffi::OsString, path::Path};
 use std::sync::Mutex;
 use std::{
     fmt::Write,
@@ -250,4 +251,59 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
 
         print_duplicates(&mut hashmap_group, &list_hashes_caps, print_config)
     }
+}
+
+
+// This function helps in sorting the vec of Hash digest and filePath.
+// Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
+pub fn sort_and_group_duplicates(
+    list_hashes: &[(BigUint, &Path)],
+) -> Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> {
+    let num_hashes_vec = Arc::new(Mutex::new(Vec::new()));
+    let bar = ProgressBar::new(num_hashes_vec.lock().unwrap().len() as u64);
+    let hashmap_accumulator: Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
+
+    for (i, k) in list_hashes.into_iter() {
+        num_hashes_vec.lock().unwrap().push(Grouper {
+            hash_to_bigint: i.to_owned(),
+            path_buf: k.to_owned().into(),
+        });
+    }
+
+    num_hashes_vec.lock().unwrap().sort_unstable();
+
+    println!("\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
+
+    let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
+
+    num_hashes_vec.par_iter_mut().for_each(|x| {
+        let r = &x.path_buf;
+        let r1 = &x.hash_to_bigint;
+        if hashmap_accumulator.lock().unwrap().contains_key(r1) {
+            let mut new = hashmap_accumulator
+                .lock()
+                .unwrap()
+                .get(r1)
+                .unwrap()
+                .to_owned();
+            new.push(r.clone());
+            hashmap_accumulator.lock().unwrap().insert(r1.clone(), new);
+        } else {
+            hashmap_accumulator
+                .lock()
+                .unwrap()
+                .insert(r1.clone(), vec![r.clone()]);
+        }
+        bar.inc(1);
+    });
+
+    hashmap_accumulator
+}
+
+// Used to store Hash Digest as BigInt and Path of Files for Sorting Operations
+#[derive(Ord, PartialOrd, PartialEq, Eq, Debug)]
+struct Grouper {
+    hash_to_bigint: BigUint,
+    path_buf: PathBuf,
 }
