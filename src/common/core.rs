@@ -81,7 +81,7 @@ macro_rules! logger {
 #[derive(Hash)]
 pub struct FileMetaData<'a> {
     pub file_name: &'a str,
-    pub modified_date: SystemTime,
+    pub modified_time: SystemTime,
     pub file_size: u64,
 }
 
@@ -227,7 +227,7 @@ pub fn print_duplicates<T, U, K>(
 ) -> (u64, u64)
 where
     T: IntoIterator + ExactSize + Clone + Paths,
-    <T as IntoIterator>::Item: Debug + Displayer,
+    <T as IntoIterator>::Item: Debug + Displayer + Times + Clone,
     U: AsF64,
     K: Eq + Hash,
 {
@@ -243,7 +243,12 @@ where
         .for_each(|x| duplicates_count += x.1.len() as u64);
 
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
+<<<<<<< Updated upstream
     let mut filtered_duplicates_result: Vec<(&K, &T)> = filtered_duplicates_result.map(|(&ref k, v)| (k, &*v)).collect();
+=======
+    let mut filtered_duplicates_result: Vec<(&K, &T)> = filtered_duplicates_result.map(|(&ref k, &mut ref v)| (k, v)).collect();
+
+>>>>>>> Stashed changes
 
     let sort_by = print_config.sort_order.0;
     let order_by = print_config.sort_order.1;
@@ -295,6 +300,15 @@ where
             }
         }
     };
+    
+    if true {
+       for (_, t) in filtered_duplicates_result.iter() {
+            let t = t.clone().clone();
+            let mut paths_vec : Vec<_>= t.into_iter().collect();
+            paths_vec.sort_by(|a, b| a.get_modified().cmp(&b.get_modified()))
+        
+       }
+    }
 
     println!("\n{}Finished.", "INFO :: ".bright_yellow());
 
@@ -374,3 +388,7 @@ where
 
     (duplicates_count, duplicates_total_size)
 }
+<<<<<<< Updated upstream
+=======
+
+>>>>>>> Stashed changes

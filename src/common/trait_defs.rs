@@ -3,7 +3,7 @@
 use std::{
     ffi::OsString,
     fs::{self, DirEntry},
-    path::PathBuf,
+    path::PathBuf, time::SystemTime,
 };
 
 pub(crate) trait DirectoryMetaData {
@@ -53,7 +53,7 @@ impl ExactSize for Vec<PathBuf> {
     }
 }
 
-impl ExactSize for Vec<OsString> {
+impl ExactSize for Vec<(OsString, Option<SystemTime>)> {
     fn len(&self) -> usize {
         self.len()
     }
@@ -61,11 +61,16 @@ impl ExactSize for Vec<OsString> {
 
 pub trait Paths {
     fn get_path(&self) -> PathBuf;
+    fn get_self(self) -> Self;
 }
 
-impl Paths for Vec<OsString> {
+impl Paths for Vec<(OsString, Option<SystemTime>)> {
     fn get_path(&self) -> PathBuf {
-        self.get(0).unwrap().into()
+        self.get(0).unwrap().clone().0.into()
+    }
+    
+    fn get_self(self) -> Self {
+        self
     }
 }
 
@@ -73,10 +78,36 @@ impl Paths for Vec<PathBuf> {
     fn get_path(&self) -> PathBuf {
         self.get(0).unwrap().to_path_buf()
     }
+    
+    fn get_self(self) -> Self {
+        self
+    }
+}
+
+pub trait Times {
+    fn get_modified(&self) -> Option<SystemTime>;
+}
+
+impl Times for (OsString, Option<SystemTime>) {
+    fn get_modified(&self) -> Option<SystemTime> {
+        self.1
+    }
+}
+
+impl Times for PathBuf {
+    fn get_modified(&self) -> Option<SystemTime> {
+     unimplemented!()
+    }
 }
 
 pub trait Displayer {
     fn to_string(&self) -> String;
+}
+
+impl Displayer for (OsString, Option<SystemTime>) {
+    fn to_string(&self) -> String {
+        self.clone().0.into_string().unwrap_or_else(|_| "failure".to_string())
+    }
 }
 
 impl Displayer for OsString {

@@ -7,8 +7,12 @@ use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
+<<<<<<< Updated upstream
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use std::{ffi::OsString, path::Path};
+=======
+use std::{ffi::OsString, path::Path, time::SystemTime};
+>>>>>>> Stashed changes
 use std::sync::Mutex;
 use std::{
     fmt::Write,
@@ -18,6 +22,7 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 //use gxhash::GxHasher;
 
 #[cfg(target_os = "linux")]
@@ -45,7 +50,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
     let list_hashes_caps: Arc<Mutex<HashMap<BigUint, u64>>> = Arc::new(Mutex::new(HashMap::new()));
     let pb = Arc::new(Mutex::new(ProgressBar::new(paths.len() as u64)));
 
-    let mut hashmap_for_duplicates_meta: Arc<Mutex<HashMap<u64, Vec<OsString>>>> =
+    let mut hashmap_for_duplicates_meta: Arc<Mutex<HashMap<u64, Vec<(OsString, Option<SystemTime>)>>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
     let hashmap_for_duplicates_meta_caps: Arc<Mutex<HashMap<u64, u64>>> =
@@ -74,9 +79,9 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
 
                     if let Some(file_name) = path.as_path().file_name() {
                         if let Some(file_name) = file_name.to_str() {
-                            let modified_date = if let Ok(modified_date) = path.metadata() {
-                                if let Ok(system_time) = modified_date.modified() {
-                                    system_time
+                            let modified_time = if let Ok(metadata) = path.metadata() {
+                                if let Ok(modified_time) = metadata.modified() {
+                                    modified_time
                                 } else {
                                     break;
                                 }
@@ -110,7 +115,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
                                 *pb_increment.lock().unwrap() += 1;
                                 let duplicates_by_metadata = FileMetaData {
                                     file_name,
-                                    modified_date,
+                                    modified_time,
                                     file_size,
                                 };
 
@@ -137,7 +142,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
                                         .unwrap()
                                         .to_owned();
 
-                                    path_vec.push(path.to_owned().into_os_string());
+                                    path_vec.push((path.to_owned().into_os_string(), Some(modified_time)));
 
                                     hashmap_for_duplicates_meta
                                         .lock()
@@ -147,7 +152,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
                                     hashmap_for_duplicates_meta
                                         .lock()
                                         .unwrap()
-                                        .insert(hash_u64, vec![path.to_owned().into_os_string()]);
+                                        .insert(hash_u64, vec![(path.to_owned().into_os_string(), Some(modified_time))]);
                                 }
                             });
                         }
@@ -253,9 +258,14 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
     }
 }
 
+<<<<<<< Updated upstream
 
 // This function helps in sorting the vec of Hash digest and filePath.
 // Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
+=======
+/// This function helps in sorting the vec of Hash digest and filePath.
+/// Once the sort is finished it will group Duplicates with the help of HashMap and Parallel Iterator
+>>>>>>> Stashed changes
 pub fn sort_and_group_duplicates(
     list_hashes: &[(BigUint, &Path)],
 ) -> Arc<Mutex<HashMap<BigUint, Vec<PathBuf>>>> {
@@ -301,9 +311,17 @@ pub fn sort_and_group_duplicates(
     hashmap_accumulator
 }
 
+<<<<<<< Updated upstream
 // Used to store Hash Digest as BigInt and Path of Files for Sorting Operations
+=======
+/// Used to store Hash Digest as BigInt and Path of Files for Sorting Operations
+>>>>>>> Stashed changes
 #[derive(Ord, PartialOrd, PartialEq, Eq, Debug)]
 struct Grouper {
     hash_to_bigint: BigUint,
     path_buf: PathBuf,
+<<<<<<< Updated upstream
 }
+=======
+}
+>>>>>>> Stashed changes
