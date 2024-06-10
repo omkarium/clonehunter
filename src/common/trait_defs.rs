@@ -1,5 +1,6 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
+// A bunch of trait definitions and implementations
 use std::{
     ffi::OsString,
     fs::{self, DirEntry},

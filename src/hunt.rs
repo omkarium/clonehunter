@@ -1,14 +1,13 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
-use clonehunter::{logger, common::core::{print_duplicates, FileMetaData, PrinterConfig}};
-use colored::Colorize;
+use clonehunter::{common::core::{log, print_duplicates, FileMetaData, LogLevel, PrinterConfig}, logger};
 use fxhash::FxHasher64;
 use hashbrown::HashMap;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::compute;
 use num_bigint::BigUint;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
-use std::{ffi::OsString, path::Path};
+use std::{ffi::OsString, path::Path };
 use std::sync::Mutex;
 use std::{
     fmt::Write,
@@ -51,12 +50,12 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
     let hashmap_for_duplicates_meta_caps: Arc<Mutex<HashMap<u64, u64>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
-    pb.lock().unwrap().set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos} /{percent}% hashes completed ({eta_precise})")
+    pb.lock().unwrap().set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos} /{percent}% hashes completed ({eta_precise}) {msg}")
     .unwrap()
     .with_key("eta", |state: &ProgressState, w: &mut dyn Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
     .progress_chars("#>-"));
 
-    println!("\n{}Finding hashes of the files...\n", "INFO :: ".bright_yellow());
+    log(LogLevel::INFO, "Generating hashes");
 
     let pb_increment: Arc<Mutex<u64>> = Arc::new(Mutex::new(1));
 
@@ -156,7 +155,9 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
             })
         });
 
-        println!("\n\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
+        pb.lock().unwrap().finish_and_clear();
+
+        log(LogLevel::INFO, "Finding clones");
 
         print_duplicates(
             &mut hashmap_for_duplicates_meta,
@@ -233,7 +234,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
                                     .unwrap()
                                     .insert(hash_to_bigint, file_length);
                             }
-                            Err(e) => println!("File {:?} {:?}", path, e.kind()),
+                            Err(e) => log(LogLevel::ERROR, format!("File {:?} {:?}", path, e.kind()).as_str()),
                         }
                         *pb_increment.lock().unwrap() += 1;
                     });
@@ -241,7 +242,7 @@ pub fn hunt(paths: Vec<PathBuf>, checksum: bool, threads: u8, print_config: Prin
             });
         });
 
-        println!("\n");
+        pb.lock().unwrap().finish_and_clear();
 
         for (i, k) in &*list_hashes.clone().lock().unwrap() {
             logger!("hash {:?} -> file {:?}", i, k);
@@ -273,7 +274,7 @@ pub fn sort_and_group_duplicates(
 
     num_hashes_vec.lock().unwrap().sort_unstable();
 
-    println!("\n{}Finding duplicates ...", "INFO :: ".bright_yellow());
+    log(LogLevel::INFO, "Finding clones");
 
     let mut num_hashes_vec = num_hashes_vec.lock().unwrap();
 

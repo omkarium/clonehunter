@@ -5,6 +5,7 @@
 #![deny(clippy::all)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+
 mod hunt;
 mod delete;
 
@@ -12,10 +13,11 @@ use crate::hunt::hunt;
 use clap::Parser;
 use colored::Colorize;
 use clonehunter::common::{config::{Args, Command, OrderBy, OutputStyle, SortBy}, core::{
-    confirmation, recurse_dirs, walk_dirs, PrinterConfig, PrinterJSONObject, SortOrder, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE
+    confirmation, log, recurse_dirs, walk_dirs, LogLevel, PrinterConfig, PrinterJSONObject, SortOrder, WalkConfig, DIR_LIST, FILES_SIZE_BYTES, FILE_LIST, VERBOSE
 }};
 use delete::delete;
 use human_bytes::human_bytes;
+use parse_size::parse_size;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     env, fs::File, io::BufReader, path::PathBuf, time::{Duration, Instant}
@@ -87,7 +89,23 @@ fn main() -> std::io::Result<()> {
                 }
             }
 
-            pb.set_message("Please be patient while I am scanning for files. The time it takes has a direct relation to the size of the source directory specified");
+            let file_max = if options.max.is_some() {
+                parse_size(options.max.clone().unwrap()).ok()
+            } else {
+                None
+            };
+
+            let file_min = if options.min.is_some() {
+                if options.max.is_some() {
+                    eprintln!("Error: --max cannot be used with --min\n");
+                    std::process::exit(1);
+                }
+                parse_size(options.min.unwrap()).ok()
+            } else {
+                None
+            };
+
+            pb.set_message("Please be patient while I am scanning for files");
 
             unsafe {
                 VERBOSE = verbose;
@@ -97,9 +115,19 @@ fn main() -> std::io::Result<()> {
 
             if options.no_max_depth {
                 DIR_LIST.lock().unwrap().push(path.clone());
-                recurse_dirs(&path, options.extension.as_deref());
+                recurse_dirs(&path, &WalkConfig {
+                    ext: options.extension.as_deref(),
+                    max_depth: None,
+                    max_file_size: file_max,
+                    min_file_size: file_min,
+                });
             } else {
-                walk_dirs(&path, options.max_depth, threads, options.extension.as_deref());
+                walk_dirs(&path, threads, &WalkConfig {
+                    ext: options.extension.as_deref(),
+                    max_depth: Some(options.max_depth),
+                    max_file_size: file_max,
+                    min_file_size: file_min,
+            });
             }
 
             pb.finish_with_message("Scan completed");
@@ -159,13 +187,13 @@ fn main() -> std::io::Result<()> {
                 let dup_data = hunt(vec_pathbuf, options.checksum, threads, print_conf);
                 let elapsed = Some(start_time.elapsed());
 
-                println!("\n============{}==============\n", "Result".bright_blue());
+                println!("\n============== {} ===============\n", "Result".bright_blue());
 
-                println!("Time taken to finish Operation: {:?}", elapsed.unwrap());
-                println!("Total duplicate records found: {}", dup_data.0.to_string().bright_purple().bold());
-                println!(
-                    "Total duplicate records file size on the disk: {}",
-                    human_bytes(dup_data.1 as f64).bright_purple().bold()
+                log(LogLevel::INFO, format!("Time taken to finish Operation: {:?}", elapsed.unwrap()).as_str());
+                log(LogLevel::INFO, format!("Total clones records found: {}", dup_data.0.to_string().bright_purple().bold().blink()).as_str());
+                log(LogLevel::INFO, format!(
+                    "Total clones records file size on the disk: {}",
+                    human_bytes(dup_data.1 as f64).bright_purple().bold().blink()).as_str()
                 );
                 println!("\nWe are done. Have a nice day 😎");
 
@@ -181,10 +209,11 @@ fn main() -> std::io::Result<()> {
                 if let Ok(input_json) = serde_json::from_reader::<_,Vec<PrinterJSONObject>>(reader) {
                     delete(input_json, options.dry_run);
                 } else {
-                    eprintln!("{}", "Error: failed to read the input file as JSON. Make sure it is a valid JSON.\n".bright_red());
+                    log(LogLevel::ERROR, "Failed to read the input file as JSON. Make sure it is a valid JSON");
                 }
             } else {
-                eprintln!("{}", "Error: the input file you have provided does not exist\n".bright_red());
+                log(LogLevel::ERROR, "The input file you have provided does not exist");
+
             }
         },
     };

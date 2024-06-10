@@ -1,8 +1,9 @@
 // Copyright (c) 2024 Venkatesh Omkaram
 
+use chrono::{DateTime, Local};
 use clap::builder::OsStr;
-use hashbrown::HashMap;
 use colored::Colorize;
+use hashbrown::HashMap;
 use human_bytes::human_bytes;
 use jwalk::WalkDir;
 use lazy_static::lazy_static;
@@ -26,7 +27,10 @@ use std::os::unix::fs::MetadataExt;
 #[cfg(target_os = "windows")]
 use std::os::windows::fs::MetadataExt;
 
-use crate::common::{config::{OrderBy, OutputStyle, SortBy}, trait_defs};
+use crate::common::{
+    config::{OrderBy, OutputStyle, SortBy},
+    trait_defs,
+};
 
 lazy_static! {
     /// A Lazy static reference to hold a List of Directory Paths
@@ -59,7 +63,7 @@ pub fn confirmation() -> String {
         confirmation.pop();
     }
 
-    println!("\nYou typed: {}\n", confirmation);
+    println!("\nYou typed: {}\n", confirmation.blink());
 
     confirmation
 }
@@ -90,9 +94,9 @@ pub struct SortOrder(pub SortBy, pub Option<OrderBy>);
 
 /// Printer configuration
 pub struct PrinterConfig {
-    pub file : Option<File>,
+    pub file: Option<File>,
     pub sort_order: SortOrder,
-    pub output_style: OutputStyle
+    pub output_style: OutputStyle,
 }
 
 /// JSON printer
@@ -101,57 +105,34 @@ pub struct PrinterJSONObject {
     pub duplicate_group_no: usize,
     pub duplicate_group_count: usize,
     pub duplicate_group_bytes_each: usize,
-    pub duplicate_list: Vec<String>
+    pub duplicate_list: Vec<String>,
 }
 
-// Common code for recurse_dirs and walk_dirs
-fn walk_and_recurse_dirs_inner<T>(path: T, ext: Option<&str>)
-where
-    T: DirectoryMetaData,
-{
-    let metadata = path.get_metadata();
-    let entry = Rc::new(path.get_path());
+pub struct WalkConfig<'a> {
+    pub ext: Option<&'a str>,
+    pub max_depth: Option<usize>,
+    pub max_file_size: Option<u64>,
+    pub min_file_size: Option<u64>,
+}
 
-    if metadata.is_dir() {
-        let base_path = entry.to_path_buf().canonicalize().unwrap();
+pub enum FileLimitingFactor {
+    GreaterThan(usize),
+    LessThan(usize),
+}
 
-        DIR_LIST.lock().unwrap().push(base_path);
-    } else {
-        if let Some(x) = entry.extension() {
-            if let Some(ext) = ext {
-                let mut vec_ext = ext.split(",");
-                if vec_ext.any(|y| x.eq(y)) {
-                    FILE_LIST.lock().unwrap().push(entry.to_path_buf().canonicalize().unwrap_or_else(|_| entry.to_path_buf()));
-                    if cfg!(unix) {
-                        #[cfg(target_os = "linux")]
-                        {
-                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                                Some(o) => {
-                                    *o += match entry.metadata() {
-                                        Ok(p) => p.size(),
-                                        Err(_) => 0,
-                                    }
-                                }
-                                None => {}
-                            }
-                        }
-                    } else if cfg!(windows) {
-                        #[cfg(target_os = "windows")]
-                        {
-                            match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
-                                Some(o) => {
-                                    *o += match entry.metadata() {
-                                        Ok(p) => p.file_size(),
-                                        Err(_) => 0,
-                                    }
-                                }
-                                None => {}
-                            }
-                        }
-                    }
-                }
-            } else {
-                FILE_LIST.lock().unwrap().push(entry.to_path_buf().canonicalize().unwrap_or_else(|_| entry.to_path_buf()));
+pub fn file_list_generator(entry: &PathBuf, wc: &WalkConfig) {
+    if let Some(x) = entry.extension() {
+        if let Some(ext) = wc.ext {
+            let mut vec_ext = ext.split(",");
+            if vec_ext.any(|y| x.eq(y)) {
+                dbg!("here too");
+                dbg!(entry);
+                FILE_LIST.lock().unwrap().push(
+                    entry
+                        .to_path_buf()
+                        .canonicalize()
+                        .unwrap_or_else(|_| entry.to_path_buf()),
+                );
                 if cfg!(unix) {
                     #[cfg(target_os = "linux")]
                     {
@@ -180,19 +161,91 @@ where
                     }
                 }
             }
+        } else {
+            FILE_LIST.lock().unwrap().push(
+                entry
+                    .to_path_buf()
+                    .canonicalize()
+                    .unwrap_or_else(|_| entry.to_path_buf()),
+            );
+            if cfg!(unix) {
+                #[cfg(target_os = "linux")]
+                {
+                    match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                        Some(o) => {
+                            *o += match entry.metadata() {
+                                Ok(p) => p.size(),
+                                Err(_) => 0,
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            } else if cfg!(windows) {
+                #[cfg(target_os = "windows")]
+                {
+                    match FILES_SIZE_BYTES.lock().unwrap().as_mut() {
+                        Some(o) => {
+                            *o += match entry.metadata() {
+                                Ok(p) => p.file_size(),
+                                Err(_) => 0,
+                            }
+                        }
+                        None => {}
+                    }
+                }
+            }
         }
+    }
+}
+
+// Common code for recurse_dirs and walk_dirs
+fn walk_and_recurse_dirs_inner<T>(path: T, wc: &WalkConfig)
+where
+    T: DirectoryMetaData,
+{
+    let metadata = path.get_metadata();
+    let entry = Rc::new(path.get_path());
+
+    if metadata.is_dir() {
+        let base_path = entry.to_path_buf().canonicalize().unwrap();
+
+        DIR_LIST.lock().unwrap().push(base_path);
+    } else {
+        let actual_file_size = match entry.metadata() {
+            Ok(p) => p.size(),
+            Err(_) => 0,
+        };
+
+        match wc.min_file_size {
+            Some(x) => {
+                if actual_file_size > x {
+                    file_list_generator(&entry, wc);
+                }
+            }
+            None => {
+                match wc.max_file_size {
+                    Some(x) => {
+                        if actual_file_size < x {
+                            file_list_generator(&entry, wc);
+                        }
+                    }
+                    None => file_list_generator(&entry, wc),
+                };
+            }
+        };
     }
 }
 
 /// Used to recursively capture path entries and capture them separately in two separate Vecs.
 /// DIR_LIST is used to hold Directory paths.
 /// FILE_LIST is used to hold File.
-pub fn recurse_dirs(item: &PathBuf, ext: Option<&str>) {
+pub fn recurse_dirs(item: &PathBuf, wc: &WalkConfig) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
             for path in paths {
-                walk_and_recurse_dirs_inner(&path, ext);
-                recurse_dirs(&path.unwrap().path(), ext)
+                walk_and_recurse_dirs_inner(&path, wc);
+                recurse_dirs(&path.unwrap().path(), wc)
             }
         }
     }
@@ -201,19 +254,46 @@ pub fn recurse_dirs(item: &PathBuf, ext: Option<&str>) {
 /// DIR_LIST is used to hold Directory paths.
 /// FILE_LIST is used to hold File paths.
 /// But uses WalkDir and Rayon to make it fast.
-pub fn walk_dirs(item: &PathBuf, max_depth: usize, threads: u8, ext: Option<&str>) {
+pub fn walk_dirs(item: &PathBuf, threads: u8, wc: &WalkConfig) {
     if item.is_dir() {
         let _: Vec<_> = WalkDir::new(item)
             .skip_hidden(false)
-            .max_depth(max_depth)
+            .max_depth(wc.max_depth.unwrap())
             .parallelism(jwalk::Parallelism::RayonNewPool(threads.into()))
             .into_iter()
             .par_bridge()
             .filter_map(|dir_entry| {
-                walk_and_recurse_dirs_inner(&dir_entry, ext);
+                walk_and_recurse_dirs_inner(&dir_entry, wc);
                 Some(())
             })
             .collect();
+    }
+}
+
+pub enum LogLevel {
+    INFO,
+    ERROR,
+}
+
+pub fn log(level: LogLevel, message: &str) {
+    let timestamp_fmt: &str = "[%Y-%m-%d %H:%M:%S.%3f]";
+    let now = Local::now();
+    let timestamp: DateTime<Local> =
+        DateTime::from_naive_utc_and_offset(now.naive_utc(), *now.offset());
+    let colored_level = match level {
+        LogLevel::INFO => "INFO".bright_yellow(),
+        LogLevel::ERROR => "ERROR".bright_red(),
+    };
+    let print = format!(
+        "\n{} {}: {}",
+        timestamp.format(timestamp_fmt),
+        colored_level,
+        message
+    );
+
+    match level {
+        LogLevel::INFO => println!("{}", print),
+        LogLevel::ERROR => eprintln!("{}", print),
     }
 }
 
@@ -243,7 +323,9 @@ where
         .for_each(|x| duplicates_count += x.1.len() as u64);
 
     let filtered_duplicates_result = arc_vec_paths.iter_mut().filter(|x| x.1.len() > 1);
-    let mut filtered_duplicates_result: Vec<(&K, &T)> = filtered_duplicates_result.map(|(&ref k, v)| (k, &*v)).collect();
+    let mut filtered_duplicates_result: Vec<(&K, &T)> = filtered_duplicates_result
+        .map(|(&ref k, v)| (k, &*v))
+        .collect();
 
     let sort_by = print_config.sort_order.0;
     let order_by = print_config.sort_order.1;
@@ -296,16 +378,25 @@ where
         }
     };
 
-    println!("\n{}Finished.", "INFO :: ".bright_yellow());
+    log(LogLevel::INFO, "Finished\n");
 
     if print_config.file.is_none() {
+        println!("######## {} ########", "Report".bright_yellow().blink());
         // Prints the duplicates to the Screen
         for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
             let x = arc_capacities.get(i).unwrap();
             let y = human_bytes(x.cast());
             duplicates_total_size += x.cast() as u64;
-            println!("\nDuplicate {:?}, {} ({} bytes) each", u, y, x.cast());
-            for i in k.clone().into_iter() {
+            let list = k.clone().into_iter().collect::<Vec<_>>();
+
+            println!(
+                "\nClone {:?}, {} ({} bytes) each * {}",
+                u,
+                y,
+                x.cast(),
+                list.len()
+            );
+            for i in list {
                 println!("      {}", i.to_string().bright_blue());
             }
         }
@@ -313,29 +404,36 @@ where
         // Write the output to a file
         let mut writer = BufWriter::new(print_config.file.unwrap());
 
-        println!("\n{}Writing the output to the file (This activity alone may take some time in case JSON output is opted) ...", "INFO :: ".bright_yellow());
-        
+        log(LogLevel::INFO, "Writing the output to the file");
+
         match print_config.output_style {
             OutputStyle::Default => {
                 for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
                     let x = arc_capacities.get(i).unwrap();
                     let y = human_bytes(x.cast());
-        
+                    let list = k.clone().into_iter().collect::<Vec<_>>();
+
                     duplicates_total_size += x.cast() as u64;
-        
-                    let header = format!("\nDuplicate {:?}, {} ({} bytes) each\n", u, y, x.cast());
+
+                    let header = format!(
+                        "\nClone {:?}, {} ({} bytes) each * {}",
+                        u,
+                        y,
+                        x.cast(),
+                        list.len()
+                    );
                     let _ = writer.write(header.as_bytes());
-        
+
                     for i in k.clone().into_iter() {
                         let message = format!("      {:?}\n", i);
                         let _ = writer.write(message.as_bytes());
                     }
                 }
-            },
+            }
             OutputStyle::JSON => {
                 let mut print_json_array = Vec::new();
                 let mut json_output = String::new();
-                
+
                 for (u, (i, k)) in filtered_duplicates_result.into_iter().enumerate() {
                     let mut print_json_object = PrinterJSONObject {
                         duplicate_group_no: 0,
@@ -347,12 +445,12 @@ where
                     let x = arc_capacities.get(i).unwrap();
 
                     duplicates_total_size += x.cast() as u64;
-                            
+
                     print_json_object.duplicate_group_no = u;
-                    print_json_object.duplicate_group_count = k.clone().into_iter().collect::<Vec<_>>().len();
+                    print_json_object.duplicate_group_count =
+                        k.clone().into_iter().collect::<Vec<_>>().len();
                     print_json_object.duplicate_group_bytes_each = x.cast() as usize;
-        
-        
+
                     for i in k.clone().into_iter() {
                         print_json_object.duplicate_list.push(i.to_string());
                     }
@@ -360,16 +458,18 @@ where
                     print_json_array.push(print_json_object);
 
                     // Serialize it to a JSON string.
-                    json_output = serde_json::to_string_pretty(&print_json_array).expect("Failed to Serialize to JSON String");
+                    if let Ok(o) = serde_json::to_string_pretty(&print_json_array) {
+                        json_output = o;
+                    } else {
+                        log(LogLevel::ERROR, "Failed to Serialize to JSON String")
+                    }
                 }
 
                 let _ = writer.write(json_output.as_bytes());
-
             }
         };
-        
-        println!("\n{}Finished writing.\n", "INFO :: ".bright_yellow());
 
+        log(LogLevel::INFO, "Finished writing to the file");
     }
 
     (duplicates_count, duplicates_total_size)

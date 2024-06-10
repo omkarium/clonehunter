@@ -31,6 +31,16 @@ pub struct HunterOptions {
     /// Prints the sorted output either in the Ascending or the Descending order
     #[clap(short, long)]
     pub order_by: Option<OrderBy>,
+    /// Targets maximum file sizes in bytes
+    /// 
+    /// (Additionally you can also use "KiB", "MiB", "GiB", "KB", "MB", "GB". For example: "150 KiB" with quotes)
+    #[clap(short = 'j', long)]
+    pub max: Option<String>,
+    /// Targets minimum file sizes in bytes (not to be used with --max)
+    /// 
+    /// (Additionally you can also use "KiB", "MiB", "GiB", "KB", "MB", "GB". For example: "13 MiB" with quotes)
+    #[clap(short = 'l', long)]
+    pub min: Option<String>,
     /// Write the output to a file using various styles (requires `-f`)
     #[clap(short = 'u', long, requires = "output_file")]
     pub output_style: Option<OutputStyle>,
