@@ -125,8 +125,6 @@ pub fn file_list_generator(entry: &PathBuf, wc: &WalkConfig) {
         if let Some(ext) = wc.ext {
             let mut vec_ext = ext.split(",");
             if vec_ext.any(|y| x.eq(y)) {
-                dbg!("here too");
-                dbg!(entry);
                 FILE_LIST.lock().unwrap().push(
                     entry
                         .to_path_buf()
