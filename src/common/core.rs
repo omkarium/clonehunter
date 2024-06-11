@@ -212,9 +212,23 @@ where
 
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
-        let actual_file_size = match entry.metadata() {
-            Ok(p) => p.size(),
-            Err(_) => 0,
+        let mut actual_file_size = 0;
+        if cfg!(unix) {
+            #[cfg(target_os = "linux")]
+            {
+                actual_file_size = match entry.metadata() {
+                    Ok(p) => p.size(),
+                    Err(_) => 0,
+                }
+            }
+        } else if cfg!(windows) {
+            #[cfg(target_os = "windows")]
+            {
+                actual_file_size = match entry.metadata() {
+                    Ok(p) => p.file_size(),
+                    Err(_) => 0,
+                }
+            }
         };
 
         match wc.min_file_size {
