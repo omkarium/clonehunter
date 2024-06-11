@@ -38,6 +38,57 @@ fn main() -> std::io::Result<()> {
 
     match command {
         Command::Hunt(options) => {
+            
+            
+            match options.sort_by {
+                SortBy::FileType => {
+                    if options.order_by.is_some() {
+                        log(LogLevel::ERROR, "--order-by cannot be used with --sort-by file-type\n");
+                        std::process::exit(1);
+                    }
+                    log(LogLevel::INFO, "I will sort the final output by file type\n");
+                }
+                SortBy::FileSize => {
+                    if let Some(order_by) = options.order_by {
+                        match order_by {
+                            OrderBy::Asc => log(LogLevel::INFO, "I will sort the final output by file size in the ascending order\n"),
+                            OrderBy::Desc => log(LogLevel::INFO, "I will sort the final output by file size in the descending order\n"),
+                        }
+                    } else {
+                        log(LogLevel::ERROR, "--order-by is required with --sort-by file-size\n");
+                        std::process::exit(1);
+                    }
+                }
+                SortBy::Both => {
+                    if let Some(order_by) = options.order_by {
+                        match order_by {
+                            OrderBy::Asc => log(LogLevel::INFO, "I will sort the final output by file size and file type in the ascending order\n"),
+                            OrderBy::Desc => log(LogLevel::INFO, "I will sort the final output by file size and file type in the descending order\n"),
+                        }
+                    } else {
+                        log(LogLevel::ERROR, "Error: --order-by is required with --sort-by file-size and file type\n");
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+
+            let file_max = if options.max.is_some() {
+                parse_size(options.max.clone().unwrap()).ok()
+            } else {
+                None
+            };
+
+            let file_min = if options.min.is_some() {
+                if options.max.is_some() {
+                    log(LogLevel::ERROR, "--max cannot be used with --min\n");
+                    std::process::exit(1);
+                }
+                parse_size(options.min.clone().unwrap()).ok()
+            } else {
+                None
+            };
+
             let pb = ProgressBar::new_spinner();
 
             pb.enable_steady_tick(Duration::from_millis(120));
@@ -56,54 +107,6 @@ fn main() -> std::io::Result<()> {
                         "▪▪▪▪▪",
                     ]),
             );
-            
-            match options.sort_by {
-                SortBy::FileType => {
-                    if options.order_by.is_some() {
-                        eprintln!("Error: --order-by cannot be used with --sort-by file-type\n");
-                        std::process::exit(1);
-                    }
-                    println!("I will sort the final output by file type\n");
-                }
-                SortBy::FileSize => {
-                    if let Some(order_by) = options.order_by {
-                        match order_by {
-                            OrderBy::Asc => println!("I will sort the final output by file size in the ascending order\n"),
-                            OrderBy::Desc => println!("I will sort the final output by file size in the descending order\n"),
-                        }
-                    } else {
-                        eprintln!("Error: --order-by is required with --sort-by file-size\n");
-                        std::process::exit(1);
-                    }
-                }
-                SortBy::Both => {
-                    if let Some(order_by) = options.order_by {
-                        match order_by {
-                            OrderBy::Asc => println!("I will sort the final output by file size and file type in the ascending order\n"),
-                            OrderBy::Desc => println!("I will sort the final output by file size and file type in the descending order\n"),
-                        }
-                    } else {
-                        eprintln!("Error: --order-by is required with --sort-by file-size and file type\n");
-                        std::process::exit(1);
-                    }
-                }
-            }
-
-            let file_max = if options.max.is_some() {
-                parse_size(options.max.clone().unwrap()).ok()
-            } else {
-                None
-            };
-
-            let file_min = if options.min.is_some() {
-                if options.max.is_some() {
-                    eprintln!("Error: --max cannot be used with --min\n");
-                    std::process::exit(1);
-                }
-                parse_size(options.min.unwrap()).ok()
-            } else {
-                None
-            };
 
             pb.set_message("Please be patient while I am scanning for files");
 
@@ -150,6 +153,8 @@ fn main() -> std::io::Result<()> {
             } else {
                 "NA".to_owned()
             });
+            println!("Target max file size                          : {}", options.max.unwrap_or("NA".to_owned()));
+            println!("Target min file size                          : {}", options.min.unwrap_or("NA".to_owned()));
             println!("Output file                                   : {}", options.output_file.clone().unwrap_or("NA".to_owned()));
             println!("Output style                                  : {}", if options.output_style.is_some() {
                 options.output_style.unwrap().to_string()

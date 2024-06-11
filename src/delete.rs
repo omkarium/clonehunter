@@ -1,6 +1,6 @@
 use std::fs::remove_file;
 
-use clonehunter::common::core::{confirmation, PrinterJSONObject};
+use clonehunter::common::core::{confirmation, log, LogLevel, PrinterJSONObject};
 use colored::Colorize;
 use human_bytes::human_bytes;
 
@@ -11,18 +11,20 @@ pub fn delete(input_json: Vec<PrinterJSONObject>, dry_run: bool) {
     for i in &input_json {
         total_files_size += i.duplicate_group_bytes_each;
     }
-    println!("Is this a dry run? : {}\n", dry_run);
-    println!(
-        "Found {} group(s) with {} total files size on the disk.\n",
+    log(LogLevel::INFO, format!("Is this a dry run? : {}", dry_run.to_string().blink()).as_str());
+    log(
+        LogLevel::INFO,
+        format!("Found {} group(s) with {} total files size on the disk",
         tota_groups,
-        human_bytes(total_files_size as f64)
-    );
+        human_bytes(total_files_size as f64).blink()
+    ).as_str());
+
     if tota_groups != 0 {
-        println!("{}", "Shall I proceed to delete the duplicates?".bright_blue());
+        println!("{}", "\nShall I proceed to delete the duplicates?".bright_blue());
         if confirmation() == "Y" {
             for mut i in input_json {
                 println!(
-                    "\nTrying deleting {} file(s) in group {} of size {}",
+                    "Trying deleting {} file(s) in group {} of size {}",
                     i.duplicate_group_count - 1,
                     i.duplicate_group_no,
                     human_bytes(i.duplicate_group_bytes_each as f64)
@@ -62,7 +64,7 @@ pub fn delete(input_json: Vec<PrinterJSONObject>, dry_run: bool) {
                     eprintln!("{}", i.bright_magenta());
                 }
             } else if dry_run {
-                println!("\nNothing changed. This was a dry run.\n");
+                log(LogLevel::INFO, "Nothing changed. This was a dry run.\n");
             } else {
                 println!("\nLooks like we are done deleting. Now please don't start crying.\n");
             }
