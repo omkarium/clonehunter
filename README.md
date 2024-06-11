@@ -91,6 +91,7 @@ clonehunter delete -i ../some.json --dry-run
 The delete command does not have many options.
 
 `-i` take the input json report file which you have generated with the `hunt` command and options `-u json -f report-name.json`
+
 `--dry-run` lets you test the deletion algorithm without really deleting anything
 
 
