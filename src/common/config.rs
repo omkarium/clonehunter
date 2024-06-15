@@ -84,7 +84,7 @@ pub enum OutputStyle {
 }
 
 #[derive(clap::Subcommand, Debug, Clone)]
-#[command(disable_version_flag = true)]
+//#[command(disable_version_flag = true)]
 pub enum Command {
     /// Search for clones (duplicates)
     Hunt(HunterOptions),
