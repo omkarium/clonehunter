@@ -195,9 +195,9 @@ fn main() -> std::io::Result<()> {
                 println!("\n============== {} ===============\n", "Result".bright_blue());
 
                 log(LogLevel::INFO, format!("Time taken to finish Operation: {:?}", elapsed.unwrap()).as_str());
-                log(LogLevel::INFO, format!("Total clones records found: {}", dup_data.0.to_string().bright_purple().bold().blink()).as_str());
+                log(LogLevel::INFO, format!("Total clones found: {}", dup_data.0.to_string().bright_purple().bold().blink()).as_str());
                 log(LogLevel::INFO, format!(
-                    "Total clones records file size on the disk: {}",
+                    "Total clones file size on the disk: {}",
                     human_bytes(dup_data.1 as f64).bright_purple().bold().blink()).as_str()
                 );
                 println!("\nWe are done. Have a nice day 😎");
