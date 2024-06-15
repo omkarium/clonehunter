@@ -5,6 +5,7 @@ use clap::builder::OsStr;
 use colored::Colorize;
 use hashbrown::HashMap;
 use human_bytes::human_bytes;
+use indicatif::ProgressBar;
 use jwalk::WalkDir;
 use lazy_static::lazy_static;
 use rayon::iter::{ParallelBridge, ParallelIterator};
@@ -198,7 +199,7 @@ pub fn file_list_generator(entry: &PathBuf, wc: &WalkConfig) {
 }
 
 // Common code for recurse_dirs and walk_dirs
-fn walk_and_recurse_dirs_inner<T>(path: T, wc: &WalkConfig)
+fn walk_and_recurse_dirs_inner<T>(path: T, wc: &WalkConfig, pb: &ProgressBar, pos: Arc<Mutex<&mut u64>>)
 where
     T: DirectoryMetaData,
 {
@@ -210,6 +211,8 @@ where
 
         DIR_LIST.lock().unwrap().push(base_path);
     } else {
+        **pos.lock().unwrap() += 1;
+        pb.set_position(**pos.lock().unwrap());
         let mut actual_file_size = 0;
         if cfg!(unix) {
             #[cfg(target_os = "linux")]
@@ -252,12 +255,12 @@ where
 /// Used to recursively capture path entries and capture them separately in two separate Vecs.
 /// DIR_LIST is used to hold Directory paths.
 /// FILE_LIST is used to hold File.
-pub fn recurse_dirs(item: &PathBuf, wc: &WalkConfig) {
+pub fn recurse_dirs(item: &PathBuf, wc: &WalkConfig, pb: &ProgressBar, pos: Arc<Mutex<&mut u64>>) {
     if item.is_dir() {
         if let Ok(paths) = fs::read_dir(item) {
             for path in paths {
-                walk_and_recurse_dirs_inner(&path, wc);
-                recurse_dirs(&path.unwrap().path(), wc)
+                walk_and_recurse_dirs_inner(&path, wc, pb, pos.clone());
+                recurse_dirs(&path.unwrap().path(), wc, pb, pos.clone());
             }
         }
     }
@@ -266,7 +269,7 @@ pub fn recurse_dirs(item: &PathBuf, wc: &WalkConfig) {
 /// DIR_LIST is used to hold Directory paths.
 /// FILE_LIST is used to hold File paths.
 /// But uses WalkDir and Rayon to make it fast.
-pub fn walk_dirs(item: &PathBuf, threads: u8, wc: &WalkConfig) {
+pub fn walk_dirs(item: &PathBuf, threads: u8, wc: &WalkConfig, pb: &ProgressBar, pos: Arc<Mutex<&mut u64>>) {
     if item.is_dir() {
         let _: Vec<_> = WalkDir::new(item)
             .skip_hidden(false)
@@ -275,7 +278,7 @@ pub fn walk_dirs(item: &PathBuf, threads: u8, wc: &WalkConfig) {
             .into_iter()
             .par_bridge()
             .filter_map(|dir_entry| {
-                walk_and_recurse_dirs_inner(&dir_entry, wc);
+                walk_and_recurse_dirs_inner(&dir_entry, wc, pb, pos.clone());
                 Some(())
             })
             .collect();

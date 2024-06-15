@@ -20,7 +20,7 @@ use human_bytes::human_bytes;
 use parse_size::parse_size;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
-    env, fs::File, io::BufReader, path::PathBuf, time::{Duration, Instant}
+    env, fs::File, io::BufReader, path::PathBuf, sync::{Arc, Mutex}, time::{Duration, Instant}
 };
 
 fn main() -> std::io::Result<()> {
@@ -93,7 +93,7 @@ fn main() -> std::io::Result<()> {
 
             pb.enable_steady_tick(Duration::from_millis(120));
             pb.set_style(
-                ProgressStyle::with_template("{spinner:.blue} {msg} {spinner:.blue}")
+                ProgressStyle::with_template("{spinner:.blue} {msg} (Files scanned: {pos}) {spinner:.blue}")
                     .unwrap()
                     // For more spinners check out the cli-spinners project:
                     // https://github.com/sindresorhus/cli-spinners/blob/master/spinners.json
@@ -123,14 +123,14 @@ fn main() -> std::io::Result<()> {
                     max_depth: None,
                     max_file_size: file_max,
                     min_file_size: file_min,
-                });
+                }, &pb, Arc::new(Mutex::new(&mut 0)));
             } else {
                 walk_dirs(&path, threads, &WalkConfig {
                     ext: options.extension.as_deref(),
                     max_depth: Some(options.max_depth),
                     max_file_size: file_max,
                     min_file_size: file_min,
-            });
+            }, &pb, Arc::new(Mutex::new(&mut 0)));
             }
 
             pb.finish_with_message("Scan completed");
@@ -162,8 +162,8 @@ fn main() -> std::io::Result<()> {
                 "NA".to_owned()
             });
 
-            println!("\nWe will now hunt for duplicate files. Make sure to redirect the output to a file now. Are you ready?");
-            println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
+            println!("\nWe will now hunt for duplicate files. Are you ready?");
+            println!("\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~");
 
             if confirmation() == "Y" {
                 let vec_pathbuf = FILE_LIST.lock().unwrap().to_vec();
