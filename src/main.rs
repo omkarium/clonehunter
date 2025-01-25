@@ -29,7 +29,7 @@ fn main() -> std::io::Result<()> {
         "by Omkarium".green().bold()
     );
     println!("\n{}\n", 
-    "[Please read the documentation at https://github.com/omkarium before you use this program]".bright_magenta());
+    "[Please read the documentation at https://github.com/omkarium/clonehunter before you use this program]".bright_magenta());
 
     let command = Args::parse().command;
     let threads = Args::parse().threads;
@@ -173,7 +173,7 @@ fn main() -> std::io::Result<()> {
                 let print_conf = if options.output_style.is_some() && options.output_file.clone().is_some() {
                     match options.output_style.clone().unwrap() {
                         OutputStyle::Default | OutputStyle::JSON  => {
-                            let file = File::create(options.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --out-path option\n");
+                            let file = File::create(options.output_file.unwrap()).expect("Error: Failed to create the output file you passed via --output-file option\n");
                             PrinterConfig {
                                 file: Some(file),
                                 sort_order,
@@ -192,9 +192,9 @@ fn main() -> std::io::Result<()> {
                 let dup_data = hunt(vec_pathbuf, options.checksum, threads, print_conf);
                 let elapsed = Some(start_time.elapsed());
 
-                println!("\n============== {} ===============\n", "Result".bright_blue());
+                println!("\n========= {} ==========\n", "Result".bright_blue());
 
-                log(LogLevel::INFO, format!("Time taken to finish Operation: {:?}", elapsed.unwrap()).as_str());
+                log(LogLevel::INFO, format!("Time taken to finish the operation: {:?}", elapsed.unwrap()).as_str());
                 log(LogLevel::INFO, format!("Total clones found: {}", dup_data.0.to_string().bright_purple().bold().blink()).as_str());
                 log(LogLevel::INFO, format!(
                     "Total clones file size on the disk: {}",
@@ -202,7 +202,7 @@ fn main() -> std::io::Result<()> {
                 );
                 println!("\nWe are done. Have a nice day 😎");
 
-                println!("\n=================================\n");
+                println!("\n============================\n");
             } else {
                 println!("\nPhew... You QUIT!\n");
             }

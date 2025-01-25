@@ -406,7 +406,7 @@ where
 
             println!(
                 "\nClone {:?}, {} ({} bytes) each * {}",
-                u,
+                u+1,
                 y,
                 x.cast(),
                 list.len()
@@ -431,8 +431,8 @@ where
                     duplicates_total_size += x.cast() as u64;
 
                     let header = format!(
-                        "\nClone {:?}, {} ({} bytes) each * {}",
-                        u,
+                        "\nClone {:?}, {} ({} bytes) each * {}\n",
+                        u+1,
                         y,
                         x.cast(),
                         list.len()
@@ -461,7 +461,7 @@ where
 
                     duplicates_total_size += x.cast() as u64;
 
-                    print_json_object.duplicate_group_no = u;
+                    print_json_object.duplicate_group_no = u+1;
                     print_json_object.duplicate_group_count =
                         k.clone().into_iter().collect::<Vec<_>>().len();
                     print_json_object.duplicate_group_bytes_each = x.cast() as usize;
